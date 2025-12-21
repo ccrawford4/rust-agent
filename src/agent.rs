@@ -1,5 +1,7 @@
 use rig::completion::ToolDefinition;
+use rig::providers::openai::responses_api::ResponsesCompletionModel;
 use rig::tool::Tool;
+use rig::{client::CompletionClient, completion::Prompt, providers::openai};
 use serde::de::{self, Visitor};
 use serde::Deserialize;
 use serde::Serialize;
@@ -141,5 +143,34 @@ impl Tool for WebSearch {
         println!("Web page content:\n{}", body);
 
         Ok(body)
+    }
+}
+
+pub struct Agent {
+    client: rig::agent::Agent<ResponsesCompletionModel>,
+}
+
+impl Agent {
+    pub fn new(api_key: String) -> Self {
+        let openai_client = openai::Client::<reqwest::Client>::new(api_key)
+            .expect("Error! Could not initialize OpenAI Client");
+
+        let client = openai_client
+            .agent(openai::GPT_5_1)
+            .preamble("You are a helpful assistant.")
+            .tool(WebSearch)
+            .build();
+
+        return Agent { client };
+    }
+
+    pub async fn prompt(&self, prompt: String) {
+        // Use the agent to process the prompt
+        let response = self
+            .client
+            .prompt(prompt)
+            .await
+            .expect("Failed to prompt GPT-4");
+        println!("Agent response: {}", response);
     }
 }

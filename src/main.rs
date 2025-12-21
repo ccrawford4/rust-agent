@@ -1,28 +1,23 @@
-use crate::agent::WebSearch;
+use crate::agent::Agent;
 use environment::Environment;
-use rig::{client::CompletionClient, completion::Prompt, providers::openai};
 
 mod agent;
 mod environment;
+mod server;
 
 #[tokio::main]
 async fn main() {
-    let env: Environment = Environment::new();
-    let openai_client = openai::Client::<reqwest::Client>::new(env.openai_api_key)
-        .expect("Error! Could not initialize OpenAI Client");
+    /*
+        let env: Environment = Environment::new();
 
-    let gpt4 = openai_client
-        .agent(openai::GPT_5_1)
-        .preamble("You are a helpful assistant.")
-        .tool(WebSearch)
-        .build();
-
-    let response = gpt4
-        .prompt(
-            "Find information about calum and report it to me. (Hint: it may be on a test server)",
-        )
-        .await
-        .expect("Failed to prompt GPT-4");
-
-    println!("GPT-4: {response}")
+        let agent = Agent::new(env.openai_api_key);
+        agent
+            .prompt(
+                "Tell me about calum? Try all urls that may work (hint it could be on a test server!)"
+                    .to_string(),
+            )
+            .await;
+    */
+    println!("Starting server...");
+    server::listen().expect("Server failed");
 }
