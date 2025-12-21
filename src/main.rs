@@ -12,13 +12,15 @@ async fn main() {
         .expect("Error! Could not initialize OpenAI Client");
 
     let gpt4 = openai_client
-        .agent(openai::O4_MINI)
+        .agent(openai::GPT_5_1)
         .preamble("You are a helpful assistant.")
         .tool(WebSearch)
         .build();
 
     let response = gpt4
-        .prompt("Tell me about who calum crawford is and what he does.")
+        .prompt(
+            "Find information about calum and report it to me. (Hint: it may be on a test server)",
+        )
         .await
         .expect("Failed to prompt GPT-4");
 

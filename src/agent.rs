@@ -4,6 +4,7 @@ use serde::de::{self, Visitor};
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;
+use std::error::Error;
 use std::fmt;
 
 #[derive(Debug, Clone)]
@@ -11,6 +12,7 @@ enum Url {
     Home,
     About,
     Work,
+    Test,
 }
 
 impl Url {
@@ -20,6 +22,7 @@ impl Url {
             Url::Home => "https://home.calum.run",
             Url::About => "https://about.calum.run",
             Url::Work => "https://work.calum.run",
+            Url::Test => "http://localhost:3000",
         }
     }
 }
@@ -47,12 +50,14 @@ impl<'de> Visitor<'de> for UrlVisitor {
             "https://home.calum.run" => Ok(Url::Home),
             "https://about.calum.run" => Ok(Url::About),
             "https://work.calum.run" => Ok(Url::Work),
+            "http://localhost:3000" => Ok(Url::Test),
             _ => Err(de::Error::unknown_variant(
                 value,
                 &[
                     "https://home.calum.run",
                     "https://about.calum.run",
                     "https://work.calum.run",
+                    "http://localhost:3000",
                 ],
             )),
         }
@@ -107,7 +112,7 @@ impl Tool for WebSearch {
                 "properties": {
                     "url": {
                         "type": "string",
-                        "description": "url to search - one of: https://home.calum.run, https://about.calum.run, https://work.calum.run"
+                        "description": "url to search - one of: http://localhost:3000, https://home.calum.run, https://about.calum.run, https://work.calum.run"
                     }
                 },
                 "required": ["url"]
@@ -117,9 +122,17 @@ impl Tool for WebSearch {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        let response = reqwest::get(args.url.as_str())
-            .await
-            .map_err(|e| ModelError(e.to_string()))?;
+        let response = reqwest::get(args.url.as_str()).await.map_err(|e| {
+            println!("Error fetching URL: {}", e);
+
+            let mut source = e.source();
+            while let Some(err) = source {
+                println!("  caused by: {}", err);
+                source = err.source();
+            }
+
+            ModelError(e.to_string())
+        })?;
         let body = response
             .text()
             .await
