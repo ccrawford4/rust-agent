@@ -1,10 +1,11 @@
 use crate::environment::Environment;
 use rig::completion::Message;
+use rig::completion::Prompt;
 use rig::completion::PromptError;
 use rig::completion::ToolDefinition;
 use rig::providers::openai::responses_api::ResponsesCompletionModel;
 use rig::tool::Tool;
-use rig::{client::CompletionClient, completion::Chat, providers::openai};
+use rig::{client::CompletionClient, providers::openai};
 use serde::de::{self, Visitor};
 use serde::Deserialize;
 use serde::Serialize;
@@ -32,7 +33,7 @@ fn get_portfolio_host() -> String {
 
 impl ProfileUrl {
     /// Returns the URL string for this variant
-    fn to_string(&self) -> String {
+    fn as_url(&self) -> String {
         let host = get_portfolio_host();
         match self {
             ProfileUrl::About => format!("{}/?tab=About", host),
@@ -45,7 +46,7 @@ impl ProfileUrl {
 
 impl fmt::Display for ProfileUrl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self.as_url())
     }
 }
 
@@ -123,10 +124,13 @@ impl std::error::Error for ModelError {}
 // For Listing out the available profile urls
 struct ProfileUrlList;
 
+#[derive(Debug, Deserialize)]
+struct ProfileUrlListArgs {}
+
 impl Tool for ProfileUrlList {
     const NAME: &'static str = "profile_url_list";
     type Error = ModelError;
-    type Args = ();
+    type Args = ProfileUrlListArgs;
     type Output = Vec<String>;
 
     async fn definition(&self, _prompt: String) -> ToolDefinition {
@@ -150,12 +154,16 @@ impl Tool for ProfileUrlList {
     }
 
     async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
-        Ok(vec![
-            ProfileUrl::About.to_string(),
-            ProfileUrl::Work.to_string(),
-            ProfileUrl::Projects.to_string(),
-            ProfileUrl::Contact.to_string(),
-        ])
+        debug!("Providing list of profile URLs");
+        let result = vec![
+            ProfileUrl::About.as_url(),
+            ProfileUrl::Work.as_url(),
+            ProfileUrl::Projects.as_url(),
+            ProfileUrl::Contact.as_url(),
+        ];
+        debug!("Providing profile URL list: {:?}", result);
+
+        Ok(result)
     }
 }
 
@@ -193,7 +201,7 @@ impl Tool for WebSearch {
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         info!("Fetching web content from: {}", args.url);
 
-        let response = reqwest::get(args.url.to_string()).await.map_err(|e| {
+        let response = reqwest::get(args.url.as_url()).await.map_err(|e| {
             error!("Error fetching URL {}: {}", args.url, e);
 
             let mut source = e.source();
@@ -223,6 +231,10 @@ pub struct Agent {
     client: rig::agent::Agent<ResponsesCompletionModel>,
 }
 
+fn format_message(msg: &Message) -> String {
+    format!("{:?}", msg)
+}
+
 impl Agent {
     pub fn new(api_key: String) -> Result<Self, Box<dyn Error>> {
         info!("Initializing OpenAI agent");
@@ -246,15 +258,30 @@ impl Agent {
         Ok(Agent { client })
     }
 
+    /// Builds a prompt with chat history appended
+    pub fn build_prompt_with_history(prompt: String, chat_history: Vec<Message>) -> String {
+        format!(
+            "{}\n\nChat History:\n{}",
+            prompt,
+            chat_history
+                .iter()
+                .map(|msg| format_message(msg))
+                .collect::<Vec<String>>()
+                .join("\n")
+        )
+    }
+
     pub async fn chat(
         &self,
         prompt: String,
         chat_history: Vec<Message>,
     ) -> Result<String, Box<dyn Error>> {
         debug!("Processing prompt ({} chars)", prompt.len());
+        let final_prompt = Self::build_prompt_with_history(prompt, chat_history);
         let response = self
             .client
-            .chat(prompt, chat_history)
+            .prompt(final_prompt)
+            .multi_turn(2)
             .await
             .map_err(|e: PromptError| {
                 error!("Error during agent prompt: {}", e);
