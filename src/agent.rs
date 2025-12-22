@@ -164,13 +164,20 @@ impl Agent {
         return Agent { client };
     }
 
-    pub async fn prompt(&self, prompt: String) {
+    pub async fn prompt(&self, prompt: String) -> Result<String, Box<dyn Error>> {
         // Use the agent to process the prompt
-        let response = self
-            .client
-            .prompt(prompt)
-            .await
-            .expect("Failed to prompt GPT-4");
+        let response = self.client.prompt(prompt).await.unwrap_or_else(|e| {
+            println!("Error during agent prompt: {}", e);
+
+            let mut source = e.source();
+            while let Some(err) = source {
+                println!("  caused by: {}", err);
+                source = err.source();
+            }
+
+            "I'm sorry, I couldn't process your request.".to_string()
+        });
         println!("Agent response: {}", response);
+        Ok(response)
     }
 }
