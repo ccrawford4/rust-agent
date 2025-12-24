@@ -55,25 +55,22 @@ impl Request {
 
         let method = parts.next().and_then(Method::from_str)?;
         let path = parts.next().and_then(Path::from_str)?;
-        let headers: Vec<&str> = lines.by_ref().take_while(|line| !line.is_empty()).collect();
-
-        // Parse headers to find API key
-        let api_key = headers.iter().find_map(|&line| {
-            if line.to_lowercase().starts_with("x-api-key") {
-                line.split(':').nth(1).map(|s| s.trim().to_string())
-            } else {
-                None
-            }
-        });
-
-        info!("api_key: {:?}", api_key);
 
         // Parse headers to find body
         let mut content_length = 0;
+        let mut api_key = None;
         for line in lines.by_ref() {
             if line.is_empty() {
                 break; // End of headers
             }
+            // Check for API Key
+            if line.to_lowercase().starts_with("x-api-key:") {
+                if let Some(key_str) = line.split(':').nth(1) {
+                    api_key = Some(key_str.trim().to_string());
+                }
+            }
+
+            // Check for content
             if line.to_lowercase().starts_with("content-length:") {
                 if let Some(len_str) = line.split(':').nth(1) {
                     content_length = len_str.trim().parse().unwrap_or(0);
@@ -88,6 +85,8 @@ impl Request {
         } else {
             None
         };
+
+        info!("body: {:?}", body);
 
         Some(Request {
             method,
