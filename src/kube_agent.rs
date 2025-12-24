@@ -24,3 +24,10 @@ impl KubeAgent {
 //  - Namespaces (how many, names)
 //
 //  NO Logs, service accounts, or any other info will be exposed to the agent!
+//
+//
+//  Private agent (long term):
+//  - Setup a private agent that can actually modify pods/deployments/etc
+//  - Create new deployments
+//  - Output the results as yaml/json
+//  - Cut a PR to introduce the change!
