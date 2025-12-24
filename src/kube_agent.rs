@@ -12,6 +12,8 @@ impl KubeAgent {
 // 1. Connect to minikube and setup a service account and token for the service account to
 //    authenticate
 //
+//    Public Agent:
+//
 // 2. Update the env + this module to use the token so we can connect to the k8s api server
 //    directly (k3s also uses token auth so this method should work for both!)
 //
