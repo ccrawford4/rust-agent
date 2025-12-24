@@ -136,7 +136,7 @@ impl Server {
     }
 
     async fn handle_client(&self, mut stream: TcpStream) -> Result<(), std::io::Error> {
-        let mut buffer = [0; 4096];
+        let mut buffer = [0; 100000];
         let bytes_read = stream.read(&mut buffer)?;
         let request_str = String::from_utf8_lossy(&buffer[..bytes_read]);
 
@@ -242,7 +242,10 @@ impl Server {
                         }
                     }
                     Err(e) => {
-                        warn!("Failed to parse chat request JSON: {}", e);
+                        warn!(
+                            "Failed to parse chat request JSON (request: {}), ERROR: {}",
+                            &body_str, e
+                        );
                         Self::send_response(stream, "400 Bad Request", "Invalid JSON body")
                     }
                 }

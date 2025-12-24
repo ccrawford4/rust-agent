@@ -231,11 +231,6 @@ pub struct Agent {
     client: rig::agent::Agent<ResponsesCompletionModel>,
 }
 
-#[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
-pub struct ModelResponse {
-    pub response: String,
-}
-
 impl Agent {
     pub fn new(api_key: String) -> Result<Self, Box<dyn Error>> {
         info!("Initializing OpenAI agent");
@@ -246,9 +241,6 @@ impl Agent {
         })?;
 
         debug!("OpenAI client initialized successfully");
-
-        // Generate JSON schema for structured output
-        let schema = schemars::schema_for!(ModelResponse);
 
         let client = openai_client
             .agent(openai::GPT_5_1)
