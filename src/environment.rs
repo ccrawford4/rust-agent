@@ -3,6 +3,7 @@ use tracing::{debug, info, warn};
 pub struct Environment {
     pub openai_api_key: String,
     pub production_mode: bool,
+    pub kube_api_server: String,
     pub chat_api_key: String, // The API Key used to enforce limit access to this server to only
                               // authorized users (ie my Next.js portfolio)
 }
@@ -43,10 +44,22 @@ impl Environment {
             }
         };
 
+        let kube_api_server = match std::env::var("KUBE_API_SERVER") {
+            Ok(server) => {
+                debug!("KUBE_API_SERVER loaded from environment");
+                server
+            }
+            Err(_) => {
+                warn!("KUBE_API_SERVER not found in environment, using default localhost");
+                "https://localhost:6443".to_string()
+            }
+        };
+
         Environment {
             openai_api_key,
             production_mode,
             chat_api_key,
+            kube_api_server,
         }
     }
 }
