@@ -3,9 +3,11 @@ pub struct KubeAgent {
 }
 
 impl KubeAgent {
-    fn new(kube_api_server: String) -> Self {
+    pub fn new(kube_api_server: String) -> Self {
         return KubeAgent { kube_api_server };
     }
+
+    fn get_pods(&self) {}
 }
 
 // TODO:
