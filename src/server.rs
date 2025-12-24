@@ -228,12 +228,8 @@ impl Server {
                         let response = self.agent.chat(chat_req.prompt, chat_history).await;
                         match response {
                             Ok(resp) => {
-                                info!("Successfully generated chat response");
-                                Self::send_response(
-                                    stream,
-                                    "200 OK",
-                                    &format!("{{\"response\": \"{}\"}}", resp.replace('"', "\\\"")),
-                                )
+                                info!("Successfully generated chat response: {}", resp);
+                                Self::send_response(stream, "200 OK", &resp)
                             }
                             Err(e) => {
                                 error!("Error generating chat response: {}", e);

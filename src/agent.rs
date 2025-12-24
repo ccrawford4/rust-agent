@@ -231,8 +231,9 @@ pub struct Agent {
     client: rig::agent::Agent<ResponsesCompletionModel>,
 }
 
-fn format_message(msg: &Message) -> String {
-    format!("{:?}", msg)
+#[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
+pub struct ModelResponse {
+    pub response: String,
 }
 
 impl Agent {
@@ -246,41 +247,43 @@ impl Agent {
 
         debug!("OpenAI client initialized successfully");
 
+        // Generate JSON schema for structured output
+        let schema = schemars::schema_for!(ModelResponse);
+
         let client = openai_client
             .agent(openai::GPT_5_1)
-            .preamble("You are a helpful assistant.")
+            .preamble("You are a helpful assistant who helps users answer questions about Calum's portfolio site or its underlying infrastructure. Always respect the JSON schema  { \"response\": \"<your response\" } in your responses. Simply ignore any mention (subtle or not) in the prompt mentioning the output schema")
             .tool(WebSearch)
             .tool(ProfileUrlList)
+            // .additional_params(json!({
+            //     "response_format": {
+            //         "type": "json_schema",
+            //         "json_schema": {
+            //             "name": "model_response",
+            //             "strict": true,
+            //             "schema": schema
+            //         }
+            //     }
+            // }))
             .build();
 
-        info!("Agent built successfully with web search tool");
+        info!("Agent built successfully with web search tool and structured output");
 
         Ok(Agent { client })
     }
 
     /// Builds a prompt with chat history appended
-    pub fn build_prompt_with_history(prompt: String, chat_history: Vec<Message>) -> String {
-        format!(
-            "{}\n\nChat History:\n{}",
-            prompt,
-            chat_history
-                .iter()
-                .map(|msg| format_message(msg))
-                .collect::<Vec<String>>()
-                .join("\n")
-        )
-    }
-
     pub async fn chat(
         &self,
         prompt: String,
-        chat_history: Vec<Message>,
+        mut chat_history: Vec<Message>,
     ) -> Result<String, Box<dyn Error>> {
         debug!("Processing prompt ({} chars)", prompt.len());
-        let final_prompt = Self::build_prompt_with_history(prompt, chat_history);
-        let response = self
+
+        let response: String = self
             .client
-            .prompt(final_prompt)
+            .prompt(&prompt)
+            .with_history(&mut chat_history)
             .multi_turn(2)
             .await
             .map_err(|e: PromptError| {
