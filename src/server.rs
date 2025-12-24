@@ -43,6 +43,7 @@ impl Path {
 struct Request {
     method: Method,
     path: Path,
+    api_key: Option<String>,
     body: Option<String>,
 }
 
@@ -54,6 +55,18 @@ impl Request {
 
         let method = parts.next().and_then(Method::from_str)?;
         let path = parts.next().and_then(Path::from_str)?;
+        let headers: Vec<&str> = lines.by_ref().take_while(|line| !line.is_empty()).collect();
+
+        // Parse headers to find API key
+        let api_key = headers.iter().find_map(|&line| {
+            if line.to_lowercase().starts_with("x-api-key") {
+                line.split(':').nth(1).map(|s| s.trim().to_string())
+            } else {
+                None
+            }
+        });
+
+        info!("api_key: {:?}", api_key);
 
         // Parse headers to find body
         let mut content_length = 0;
@@ -76,7 +89,12 @@ impl Request {
             None
         };
 
-        Some(Request { method, path, body })
+        Some(Request {
+            method,
+            path,
+            body,
+            api_key,
+        })
     }
 }
 
@@ -107,11 +125,16 @@ impl TryFrom<HttpMessage> for Message {
 pub struct Server {
     agent: Agent,
     host: String,
+    api_key: String,
 }
 
 impl Server {
-    pub fn new(agent: Agent, host: String) -> Self {
-        Server { agent, host }
+    pub fn new(agent: Agent, host: String, api_key: String) -> Self {
+        Server {
+            agent,
+            host,
+            api_key,
+        }
     }
 
     pub async fn listen(&self) -> io::Result<()> {
@@ -146,6 +169,21 @@ impl Server {
                     "Parsed request: method={:?}, path={:?}",
                     request.method, request.path
                 );
+
+                if let Some(api_key) = &request.api_key {
+                    debug!("API key provided: {}", api_key);
+                    if *api_key != self.api_key {
+                        warn!("Invalid API key provided");
+                        return Self::send_response(
+                            &mut stream,
+                            "403 Forbidden",
+                            "Invalid API key",
+                        );
+                    }
+                } else {
+                    warn!("No API key provided in request");
+                    return Self::send_response(&mut stream, "401 Unauthorized", "Missing API key");
+                }
 
                 match request.path {
                     Path::Chat => {

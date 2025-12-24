@@ -3,6 +3,8 @@ use tracing::{debug, info, warn};
 pub struct Environment {
     pub openai_api_key: String,
     pub production_mode: bool,
+    pub chat_api_key: String, // The API Key used to enforce limit access to this server to only
+                              // authorized users (ie my Next.js portfolio)
 }
 
 impl Environment {
@@ -30,9 +32,21 @@ impl Environment {
             }
         };
 
+        let chat_api_key = match std::env::var("CHAT_API_KEY") {
+            Ok(key) => {
+                debug!("CHAT_API_KEY loaded from environment");
+                key
+            }
+            Err(_) => {
+                warn!("CHAT_API_KEY not found in environment, using empty string");
+                String::new()
+            }
+        };
+
         Environment {
             openai_api_key,
             production_mode,
+            chat_api_key,
         }
     }
 }

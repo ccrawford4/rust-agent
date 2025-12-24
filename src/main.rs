@@ -1,5 +1,6 @@
 use crate::agent::Agent;
 use crate::server::Server;
+use dotenv::dotenv;
 use environment::Environment;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
@@ -10,13 +11,15 @@ mod server;
 
 #[tokio::main]
 async fn main() {
+    // Load environment variables from .env file
+    dotenv().ok();
+
     // Initialize tracing subscriber with environment filter
     // Set RUST_LOG environment variable to control log levels
     // Example: RUST_LOG=debug cargo run
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info"))
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
         .with_target(true)
         .with_thread_ids(true)
@@ -35,7 +38,7 @@ async fn main() {
         }
     };
 
-    let server = Server::new(agent, "127.0.0.1:8080".to_string());
+    let server = Server::new(agent, "127.0.0.1:8080".to_string(), env.chat_api_key);
 
     info!("Server initialized, listening on 127.0.0.1:8080");
 
