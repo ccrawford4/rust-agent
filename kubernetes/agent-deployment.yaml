@@ -16,8 +16,7 @@ spec:
     spec:
       serviceAccountName: kube-agent
       containers:
-        - name: curl
-          image: curlimages/curl:latest
+        - name: kube-agent
+          image: ccrawford4/ai-agent-api:latest
           ports:
-            - containerPort: 80
-          command: ["sleep", "infinity"]
+            - containerPort: 8080

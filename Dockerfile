@@ -1,10 +1,13 @@
-FROM rust:1.92 as builder
-
+FROM rust:1.92 AS builder
 
 WORKDIR /usr/src/app
 
-COPY Cargo.toml Cargo.lock ./
+COPY . .
 
 RUN cargo build --release
 
-COPY ./src ./src
+FROM debian:bookworm-slim
+
+COPY --from=builder /usr/src/app/target/release/rust-agent /usr/local/bin/rust-agent
+
+CMD ["rust-agent"]
