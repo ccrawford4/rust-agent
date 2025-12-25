@@ -6,7 +6,7 @@ use std::net::{TcpListener, TcpStream};
 use tracing::{debug, error, info, warn};
 
 #[derive(Debug)]
-enum Method {
+pub enum Method {
     GET,
     POST,
 }

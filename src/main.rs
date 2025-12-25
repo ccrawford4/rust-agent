@@ -1,4 +1,5 @@
 use crate::agent::Agent;
+use crate::kube_agent::KubeAgent;
 use crate::server::Server;
 use dotenv::dotenv;
 use environment::Environment;
@@ -7,6 +8,7 @@ use tracing_subscriber::EnvFilter;
 
 mod agent;
 mod environment;
+mod kube_agent;
 mod server;
 
 #[tokio::main]
@@ -37,6 +39,14 @@ async fn main() {
             std::process::exit(1);
         }
     };
+
+    let kube_agent = KubeAgent::new(env.kube_api_server, env.kube_token);
+    if let Ok(_) = kube_agent.get_pods(None, None) {
+        info!("Successfully connected to Kubernetes API server");
+    } else {
+        error!("Failed to connect to Kubernetes API server");
+        std::process::exit(1);
+    }
 
     let server = Server::new(agent, "127.0.0.1:8080".to_string(), env.chat_api_key);
 

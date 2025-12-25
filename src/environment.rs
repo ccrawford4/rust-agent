@@ -4,6 +4,7 @@ pub struct Environment {
     pub openai_api_key: String,
     pub production_mode: bool,
     pub kube_api_server: String,
+    pub kube_token: String,
     pub chat_api_key: String, // The API Key used to enforce limit access to this server to only
                               // authorized users (ie my Next.js portfolio)
 }
@@ -55,11 +56,23 @@ impl Environment {
             }
         };
 
+        let kube_token = match std::env::var("KUBE_TOKEN") {
+            Ok(token) => {
+                debug!("KUBE_TOKEN loaded from environment");
+                token
+            }
+            Err(_) => {
+                warn!("KUBE_TOKEN not found in environment, using empty string");
+                String::new()
+            }
+        };
+
         Environment {
             openai_api_key,
             production_mode,
             chat_api_key,
             kube_api_server,
+            kube_token,
         }
     }
 }
