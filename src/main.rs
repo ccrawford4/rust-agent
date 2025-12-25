@@ -40,9 +40,13 @@ async fn main() {
         }
     };
 
-    if let Ok(pod_list) = ListPodsTool::new(KubeAgent::new(env.kube_api_server, env.kube_token))
-        .list_pods(None, None)
-        .await
+    if let Ok(pod_list) = ListPodsTool::new(KubeAgent::new(
+        env.kube_api_server,
+        env.kube_token,
+        env.kube_certificate,
+    ))
+    .list_pods(None, None)
+    .await
     {
         info!(
             "Successfully connected to Kubernetes cluster. Found {} pods.",

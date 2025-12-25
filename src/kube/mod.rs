@@ -11,13 +11,19 @@ use tracing::*;
 pub struct KubeAgent {
     kube_api_server: String,
     token: String,
+    certificate: Option<reqwest::Certificate>,
 }
 
 impl KubeAgent {
-    pub fn new(kube_api_server: String, token: String) -> Self {
+    pub fn new(
+        kube_api_server: String,
+        token: String,
+        certificate: Option<reqwest::Certificate>,
+    ) -> Self {
         KubeAgent {
             kube_api_server,
             token,
+            certificate,
         }
     }
 
@@ -27,6 +33,15 @@ impl KubeAgent {
 
         // Also should use the certificate at /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         // for production environments
+
+        // Production curl:
+        // curl \
+        /*
+        --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+        -H "Authorization: Bearer $TOKEN" \
+        https://kubernetes.default.svc/api/v1/namespaces
+              */
+
         info!(
             "Connecting to Kubernetes API server at {}",
             self.kube_api_server
@@ -38,11 +53,18 @@ impl KubeAgent {
             format!("Bearer {}", self.token).parse().unwrap(),
         );
 
-        let client = reqwest::Client::builder()
-            .default_headers(headers)
-            .danger_accept_invalid_certs(true)
-            .build()
-            .unwrap();
+        let client = if let Some(cert) = &self.certificate {
+            reqwest::Client::builder()
+                .default_headers(headers)
+                .add_root_certificate(cert.clone())
+                .build()
+                .unwrap()
+        } else {
+            reqwest::Client::builder()
+                .default_headers(headers)
+                .build()
+                .unwrap()
+        };
 
         let request = client
             .get(format!("{}{}", self.kube_api_server, endpoint))
