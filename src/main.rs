@@ -1,12 +1,13 @@
 use crate::agent::Agent;
+use crate::environment::Environment;
 use crate::server::Server;
 use dotenv::dotenv;
-use environment::Environment;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
 mod agent;
 mod environment;
+mod kube;
 mod server;
 
 #[tokio::main]

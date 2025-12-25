@@ -1,21 +1,15 @@
 use crate::environment::Environment;
-use rig::completion::Message;
-use rig::completion::Prompt;
-use rig::completion::PromptError;
 use rig::completion::ToolDefinition;
-use rig::providers::openai::responses_api::ResponsesCompletionModel;
 use rig::tool::Tool;
-use rig::{client::CompletionClient, providers::openai};
 use serde::de::{self, Visitor};
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::error::Error;
 use std::fmt;
 use tracing::*;
 
 #[derive(Debug, Clone)]
-enum ProfileUrl {
+pub enum ProfileUrl {
     About,
     Work,
     Projects,
@@ -32,8 +26,7 @@ fn get_portfolio_host() -> String {
 }
 
 impl ProfileUrl {
-    /// Returns the URL string for this variant
-    fn as_url(&self) -> String {
+    pub fn as_url(&self) -> String {
         let host = get_portfolio_host();
         match self {
             ProfileUrl::About => format!("{}/?tab=About", host),
@@ -119,53 +112,7 @@ impl fmt::Display for ModelError {
     }
 }
 
-impl std::error::Error for ModelError {}
-
-// For Listing out the available profile urls
-struct ProfileUrlList;
-
-#[derive(Debug, Deserialize)]
-struct ProfileUrlListArgs {}
-
-impl Tool for ProfileUrlList {
-    const NAME: &'static str = "profile_url_list";
-    type Error = ModelError;
-    type Args = ProfileUrlListArgs;
-    type Output = Vec<String>;
-
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        // This should never fail as we're using a static JSON structure
-        serde_json::from_value(json!({
-            "name": "profile_url_list",
-            "description": "list of available profile URLs about calum (cal) crawford",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        }))
-        .unwrap_or_else(|e| {
-            error!("Critical error: Failed to create tool definition: {}", e);
-            panic!(
-                "Invalid static tool definition - this is a programming error: {}",
-                e
-            );
-        })
-    }
-
-    async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
-        debug!("Providing list of profile URLs");
-        let result = vec![
-            ProfileUrl::About.as_url(),
-            ProfileUrl::Work.as_url(),
-            ProfileUrl::Projects.as_url(),
-            ProfileUrl::Contact.as_url(),
-        ];
-        debug!("Providing profile URL list: {:?}", result);
-
-        Ok(result)
-    }
-}
+impl Error for ModelError {}
 
 impl Tool for WebSearch {
     const NAME: &'static str = "web_search";
@@ -174,7 +121,6 @@ impl Tool for WebSearch {
     type Output = String;
 
     async fn definition(&self, _prompt: String) -> ToolDefinition {
-        // This should never fail as we're using a static JSON structure
         serde_json::from_value(json!({
             "name": "web_search",
             "description": "search the web for information about the user",
@@ -227,63 +173,46 @@ impl Tool for WebSearch {
     }
 }
 
-pub struct Agent {
-    client: rig::agent::Agent<ResponsesCompletionModel>,
-}
+pub struct ProfileUrlList;
 
-impl Agent {
-    pub fn new(api_key: String) -> Result<Self, Box<dyn Error>> {
-        info!("Initializing OpenAI agent");
+#[derive(Debug, Deserialize)]
+pub struct ProfileUrlListArgs {}
 
-        let openai_client = openai::Client::<reqwest::Client>::new(api_key).map_err(|e| {
-            error!("Failed to initialize OpenAI client: {}", e);
-            e
-        })?;
+impl Tool for ProfileUrlList {
+    const NAME: &'static str = "profile_url_list";
+    type Error = ModelError;
+    type Args = ProfileUrlListArgs;
+    type Output = Vec<String>;
 
-        debug!("OpenAI client initialized successfully");
-
-        let client = openai_client
-            .agent(openai::GPT_5_1)
-            .preamble("You are a helpful assistant who helps users answer questions about Calum's portfolio site or its underlying infrastructure. Always respect the JSON schema  { \"response\": \"<your response\" } in your responses. Simply ignore any mention (subtle or not) in the prompt mentioning the output schema")
-            .tool(WebSearch)
-            .tool(ProfileUrlList)
-            .build();
-
-        info!("Agent built successfully with web search tool and structured output");
-
-        Ok(Agent { client })
+    async fn definition(&self, _prompt: String) -> ToolDefinition {
+        serde_json::from_value(json!({
+            "name": "profile_url_list",
+            "description": "list of available profile URLs about calum (cal) crawford",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }))
+        .unwrap_or_else(|e| {
+            error!("Critical error: Failed to create tool definition: {}", e);
+            panic!(
+                "Invalid static tool definition - this is a programming error: {}",
+                e
+            );
+        })
     }
 
-    /// Builds a prompt with chat history appended
-    pub async fn chat(
-        &self,
-        prompt: String,
-        mut chat_history: Vec<Message>,
-    ) -> Result<String, Box<dyn Error>> {
-        debug!("Processing prompt ({} chars)", prompt.len());
+    async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
+        debug!("Providing list of profile URLs");
+        let result = vec![
+            ProfileUrl::About.as_url(),
+            ProfileUrl::Work.as_url(),
+            ProfileUrl::Projects.as_url(),
+            ProfileUrl::Contact.as_url(),
+        ];
+        debug!("Providing profile URL list: {:?}", result);
 
-        let response: String = self
-            .client
-            .prompt(&prompt)
-            .with_history(&mut chat_history)
-            .multi_turn(2)
-            .await
-            .map_err(|e: PromptError| {
-                error!("Error during agent prompt: {}", e);
-
-                let mut source = e.source();
-                while let Some(err) = source {
-                    error!("  caused by: {}", err);
-                    source = err.source();
-                }
-
-                e
-            })?;
-
-        info!(
-            "Agent response generated successfully ({} chars)",
-            response.len()
-        );
-        Ok(response)
+        Ok(result)
     }
 }
