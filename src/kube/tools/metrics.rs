@@ -2,15 +2,17 @@ use rig::completion::ToolDefinition;
 use rig::tool::Tool;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-// See pod and container metrics (cpu/memory)
-//
-// This requires the cluster to enable the metrics-server addon.
 
 use crate::kube::error::KubeAgentError;
 use crate::kube::types::{NodeListResponse, NodeMetricsListResponse, NodeMetricsWithUsageResponse};
 use crate::kube::KubeAgent;
 use tracing::*;
 
+/// Tool for fetching Kubernetes node metrics (CPU and memory usage).
+///
+/// Requires the cluster to have the metrics-server addon enabled.
+/// Combines data from both the core API and metrics API to provide
+/// usage statistics with percentages.
 pub struct NodeMetricsTool {
     kube_agent: KubeAgent,
 }
@@ -48,21 +50,22 @@ impl NodeMetricsTool {
         Ok(nodes)
     }
 
-    /// Fetch both node info and metrics, then combine them to show usage with percentages
+    /// Fetches both node info and metrics, then combines them to show usage with percentages.
+    ///
+    /// Makes parallel requests to both the core API and metrics API for efficiency.
     pub async fn get_node_metrics_with_usage(
         &self,
     ) -> Result<NodeMetricsWithUsageResponse, KubeAgentError> {
-        // Fetch both APIs in parallel
+        debug!("Fetching node metrics and capacity in parallel");
+
         let (nodes_result, metrics_result) =
             tokio::join!(self.get_nodes(), self.get_node_metrics());
 
         let nodes = nodes_result?;
         let metrics = metrics_result?;
 
-        debug!("Parsed Nodes: {:?}", nodes);
-        debug!("Parsed Node Metrics: {:?}", metrics);
+        debug!("Successfully fetched node data and metrics");
 
-        // Combine the data
         metrics.combine_with_nodes(&nodes)
     }
 }

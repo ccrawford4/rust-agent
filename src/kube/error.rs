@@ -1,9 +1,13 @@
 use std::fmt;
 
+/// Errors that can occur when interacting with the Kubernetes API.
 #[derive(Debug)]
 pub enum KubeAgentError {
+    /// HTTP request failure (network, timeout, etc.)
     HttpError(reqwest::Error),
+    /// Failed to parse JSON response from Kubernetes API
     JsonParseError(serde_json::Error),
+    /// General parsing or data validation error
     ParseError(String),
 }
 

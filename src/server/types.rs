@@ -1,6 +1,7 @@
 use rig::completion::Message;
 use serde::{Deserialize, Serialize};
 
+/// HTTP methods supported by the server
 #[derive(Debug)]
 pub enum Method {
     GET,
@@ -17,10 +18,14 @@ impl Method {
     }
 }
 
+/// HTTP paths (routes) supported by the server
 #[derive(Debug)]
 pub enum Path {
+    /// POST /chat - Main chat endpoint for AI interactions
     Chat,
+    /// GET / - Health check endpoint
     Root,
+    /// GET /favicon.ico - Favicon request (returns 404)
     Favicon,
 }
 
@@ -35,6 +40,7 @@ impl Path {
     }
 }
 
+/// Parsed HTTP request with relevant fields extracted
 #[derive(Debug)]
 pub struct Request {
     pub method: Method,
@@ -44,6 +50,14 @@ pub struct Request {
 }
 
 impl Request {
+    /// Parses an HTTP/1.1 request string into a Request struct.
+    ///
+    /// Extracts:
+    /// - HTTP method and path from the request line
+    /// - X-API-Key header for authentication
+    /// - Request body based on Content-Length header
+    ///
+    /// Returns None if the request is malformed or uses unsupported method/path.
     pub fn parse(request_str: &str) -> Option<Self> {
         let mut lines = request_str.lines();
         let first_line = lines.next()?;
@@ -54,6 +68,8 @@ impl Request {
 
         let mut content_length = 0;
         let mut api_key = None;
+
+        // Parse headers
         for line in lines.by_ref() {
             if line.is_empty() {
                 break;
@@ -63,7 +79,6 @@ impl Request {
                     api_key = Some(key_str.trim().to_string());
                 }
             }
-
             if line.to_lowercase().starts_with("content-length:") {
                 if let Some(len_str) = line.split(':').nth(1) {
                     content_length = len_str.trim().parse().unwrap_or(0);
@@ -71,6 +86,7 @@ impl Request {
             }
         }
 
+        // Extract body if present
         let body = if content_length > 0 {
             let body_str: String = lines.collect::<Vec<_>>().join("\n");
             Some(body_str)
@@ -87,15 +103,21 @@ impl Request {
     }
 }
 
+/// Request payload for the /chat endpoint
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ChatRequest {
+    /// The user's prompt/question
     pub prompt: String,
+    /// Optional conversation history for context
     pub chat_history: Option<Vec<HttpMessage>>,
 }
 
+/// A single message in a chat conversation
 #[derive(Debug, Deserialize, Serialize)]
 pub struct HttpMessage {
+    /// Message role: "user" or "assistant"
     pub role: String,
+    /// Message content/text
     pub content: String,
 }
 

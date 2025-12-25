@@ -8,6 +8,7 @@ use std::error::Error;
 use std::fmt;
 use tracing::*;
 
+/// Valid URLs for the portfolio site sections.
 #[derive(Debug, Clone)]
 pub enum ProfileUrl {
     About,
@@ -95,14 +96,17 @@ impl<'de> Deserialize<'de> for ProfileUrl {
     }
 }
 
+/// Arguments for the WebSearch tool
 #[derive(Deserialize)]
 pub struct WebSearchArgs {
     url: ProfileUrl,
 }
 
+/// Tool for fetching content from portfolio website sections.
 #[derive(Deserialize, Serialize)]
 pub struct WebSearch;
 
+/// Error type for tool execution failures
 #[derive(Debug)]
 pub struct ModelError(String);
 
@@ -173,8 +177,10 @@ impl Tool for WebSearch {
     }
 }
 
+/// Tool for listing available portfolio URLs.
 pub struct ProfileUrlList;
 
+/// Arguments for the ProfileUrlList tool (no arguments required)
 #[derive(Debug, Deserialize)]
 pub struct ProfileUrlListArgs {}
 

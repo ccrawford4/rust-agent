@@ -7,6 +7,10 @@ use std::net::{TcpListener, TcpStream};
 use tracing::{debug, error, info, warn};
 use types::{ChatRequest, Method, Path, Request};
 
+/// HTTP server that handles AI chat requests.
+///
+/// Implements a custom TCP-based HTTP/1.1 server without using a web framework.
+/// Provides endpoints for health checks and AI-powered chat interactions.
 pub struct Server {
     agent: Agent,
     host: String,
@@ -22,6 +26,10 @@ impl Server {
         }
     }
 
+    /// Starts the server and listens for incoming connections.
+    ///
+    /// Blocks indefinitely, handling requests synchronously (one at a time).
+    /// Each connection is processed completely before accepting the next one.
     pub async fn listen(&self) -> io::Result<()> {
         let listener = TcpListener::bind(&self.host)?;
         info!("Server listening on {}", self.host);
@@ -29,13 +37,13 @@ impl Server {
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
-                    debug!("Accepted new connection from {:?}", stream.peer_addr());
+                    debug!("Accepted connection from {:?}", stream.peer_addr());
                     if let Err(e) = self.handle_client(stream).await {
                         error!("Error handling client: {}", e);
                     }
                 }
                 Err(e) => {
-                    warn!("Connection failed: {}", e);
+                    warn!("Failed to accept connection: {}", e);
                 }
             }
         }
@@ -43,8 +51,12 @@ impl Server {
         Ok(())
     }
 
+    /// Handles a single client connection.
+    ///
+    /// Reads the HTTP request, validates the API key, routes to appropriate handler,
+    /// and sends the response.
     async fn handle_client(&self, mut stream: TcpStream) -> Result<(), std::io::Error> {
-        let mut buffer = [0; 100000];
+        let mut buffer = [0; 100000]; // 100KB buffer for request
         let bytes_read = stream.read(&mut buffer)?;
         let request_str = String::from_utf8_lossy(&buffer[..bytes_read]);
 
@@ -55,18 +67,19 @@ impl Server {
                     request.method, request.path
                 );
 
+                // Validate API key
                 if let Some(api_key) = &request.api_key {
-                    debug!("API key provided: {}", api_key);
                     if *api_key != self.api_key {
-                        warn!("Invalid API key provided");
+                        warn!("Invalid API key attempt");
                         return Self::send_response(
                             &mut stream,
                             "403 Forbidden",
                             "Invalid API key",
                         );
                     }
+                    debug!("API key validated successfully");
                 } else {
-                    warn!("No API key provided in request");
+                    warn!("Request missing API key");
                     return Self::send_response(&mut stream, "401 Unauthorized", "Missing API key");
                 }
 
@@ -90,8 +103,9 @@ impl Server {
         }
     }
 
+    /// Sends an HTTP response to the client.
     fn send_response(stream: &mut TcpStream, status: &str, body: &str) -> io::Result<()> {
-        debug!("Sending response: status={}", status);
+        debug!("Sending response: {}", status);
         let response = format!(
             "HTTP/1.1 {}\r\nContent-Length: {}\r\n\r\n{}",
             status,
@@ -102,6 +116,7 @@ impl Server {
         stream.flush()
     }
 
+    /// Handles POST /chat requests by processing the prompt through the AI agent.
     async fn chat_handler(
         &self,
         stream: &mut TcpStream,
@@ -125,12 +140,14 @@ impl Server {
                 match serde_json::from_str::<ChatRequest>(&body_str) {
                     Ok(chat_req) => {
                         info!(
-                            "Received chat request - prompt length: {} chars",
+                            "Processing chat request ({} chars)",
                             chat_req.prompt.len()
                         );
+
+                        // Convert chat history to internal message format
                         let mut chat_history: Vec<Message> = Vec::new();
                         if let Some(history) = chat_req.chat_history {
-                            debug!("Chat history length: {} messages", history.len());
+                            debug!("Including {} historical messages", history.len());
                             let mut converted_history = Vec::new();
                             for msg in history {
                                 match msg.try_into() {
@@ -151,11 +168,12 @@ impl Server {
                         let response = self.agent.chat(chat_req.prompt, chat_history).await;
                         match response {
                             Ok(resp) => {
-                                info!("Successfully generated chat response: {}", resp);
+                                info!("Generated response ({} chars)", resp.len());
+                                debug!("Response content: {}", resp);
                                 Self::send_response(stream, "200 OK", &resp)
                             }
                             Err(e) => {
-                                error!("Error generating chat response: {}", e);
+                                error!("Failed to generate chat response: {}", e);
                                 Self::send_response(
                                     stream,
                                     "500 Internal Server Error",
@@ -180,8 +198,9 @@ impl Server {
         }
     }
 
+    /// Handles GET / requests (health check endpoint).
     fn root_handler(&self, stream: &mut TcpStream) -> io::Result<()> {
-        debug!("Health check request received");
+        debug!("Health check requested");
         Self::send_response(stream, "200 OK", "{\"healthy\": true}")
     }
 }

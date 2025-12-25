@@ -1,18 +1,41 @@
 use reqwest::Certificate;
 use tracing::{debug, info, warn};
 
+/// Application configuration loaded from environment variables.
+///
+/// Handles different configuration sources based on deployment mode:
+/// - Local development: loads from .env file and environment variables
+/// - Production (Kubernetes): loads from mounted secrets and service account tokens
 pub struct Environment {
+    /// OpenAI API key for AI agent functionality
     pub openai_api_key: String,
+
+    /// Whether the application is running in production mode (affects token/cert loading)
     pub production_mode: bool,
-    pub kube_api_server: String, // The URL of the Kubernetes API server
-    pub kube_certificate: Option<Certificate>, // The CA certificate for the Kubernetes API server
-    pub kube_token: String,      // The Bearer token used to authenticate to the Kubernetes API
-    // server
-    pub chat_api_key: String, // The API Key used to enforce limit access to this server to only
-                              // authorized users (ie my Next.js portfolio)
+
+    /// Kubernetes API server URL
+    pub kube_api_server: String,
+
+    /// CA certificate for secure Kubernetes API communication (production only)
+    pub kube_certificate: Option<Certificate>,
+
+    /// Bearer token for Kubernetes API authentication
+    pub kube_token: String,
+
+    /// API key for authenticating requests to this server
+    pub chat_api_key: String,
 }
 
 impl Environment {
+    /// Creates a new Environment by loading configuration from environment variables.
+    ///
+    /// In production mode (PRODUCTION_MODE=true):
+    /// - Loads Kubernetes credentials from mounted service account files
+    /// - Uses CA certificates for secure cluster communication
+    ///
+    /// In development mode:
+    /// - Loads all credentials from environment variables
+    /// - Accepts self-signed certificates for local clusters
     pub fn new() -> Self {
         let openai_api_key = match std::env::var("OPENAI_API_KEY") {
             Ok(key) => {
@@ -60,7 +83,7 @@ impl Environment {
         };
 
         let kube_token = if production_mode {
-            debug!("Running in production mode. Getting kube token from mounted token file.");
+            debug!("Production mode: loading Kubernetes token from mounted service account");
             match std::fs::read_to_string("/var/run/secrets/kubernetes.io/serviceaccount/token") {
                 Ok(token) => {
                     debug!("Kubernetes token loaded from service account");
@@ -74,7 +97,7 @@ impl Environment {
                 }
             }
         } else {
-            debug!("Not running in production mode, getting temporary token from environment");
+            debug!("Development mode: loading Kubernetes token from KUBE_TOKEN environment variable");
             match std::env::var("KUBE_TOKEN") {
                 Ok(token) => {
                     debug!("KUBE_TOKEN loaded from environment");
@@ -88,7 +111,7 @@ impl Environment {
         };
 
         let kube_certificate = if production_mode {
-            debug!("Running in production mode. Getting kube certificate from mounted file.");
+            debug!("Production mode: loading Kubernetes CA certificate from mounted service account");
             match std::fs::read("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt") {
                 Ok(cert_bytes) => match Certificate::from_pem(&cert_bytes) {
                     Ok(cert) => {
@@ -110,7 +133,7 @@ impl Environment {
                 }
             }
         } else {
-            debug!("Not running in production mode, proceeding without kube certificate");
+            debug!("Development mode: skipping CA certificate (will accept self-signed certs)");
             None
         };
 

@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::*;
 
+/// Tool for listing pods in a Kubernetes cluster namespace.
+///
+/// Supports filtering by namespace and limiting the number of results.
 pub struct ListPodsTool {
     kube_agent: KubeAgent,
 }

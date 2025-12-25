@@ -3,7 +3,7 @@ use crate::environment::Environment;
 use crate::kube::{KubeAgent, ListPodsTool};
 use crate::server::Server;
 use dotenv::dotenv;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
 mod agent;
@@ -11,14 +11,16 @@ mod environment;
 mod kube;
 mod server;
 
+/// Main application entry point.
+///
+/// Initializes the AI agent API server with Kubernetes integration.
+/// The server provides endpoints for chatting with an AI agent that can
+/// query portfolio information and Kubernetes cluster metrics.
 #[tokio::main]
 async fn main() {
-    // Load environment variables from .env file
     dotenv().ok();
 
-    // Initialize tracing subscriber with environment filter
-    // Set RUST_LOG environment variable to control log levels
-    // Example: RUST_LOG=debug cargo run
+    // Initialize structured logging (control with RUST_LOG env var)
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
@@ -28,22 +30,23 @@ async fn main() {
         .with_line_number(true)
         .init();
 
-    info!("Starting SQL Agent application");
+    info!("Starting AI Agent API server");
 
     let env = Environment::new();
 
     let agent = match Agent::new(env.openai_api_key) {
         Ok(agent) => agent,
         Err(e) => {
-            error!("Failed to initialize agent: {}", e);
+            error!("Failed to initialize AI agent: {}", e);
             std::process::exit(1);
         }
     };
 
+    // Test Kubernetes connectivity on startup
     if let Ok(pod_list) = ListPodsTool::new(KubeAgent::new(
-        env.kube_api_server,
-        env.kube_token,
-        env.kube_certificate,
+        env.kube_api_server.clone(),
+        env.kube_token.clone(),
+        env.kube_certificate.clone(),
     ))
     .list_pods(None, None)
     .await
@@ -53,7 +56,7 @@ async fn main() {
             pod_list
         );
     } else {
-        error!("Failed to connect to Kubernetes cluster.");
+        warn!("Failed to connect to Kubernetes cluster. AI agent will have limited functionality.");
     }
 
     let server = Server::new(agent, "127.0.0.1:8080".to_string(), env.chat_api_key);

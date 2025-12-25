@@ -1,4 +1,3 @@
-use crate::kube::debug;
 use crate::kube::types::NamespaceListResponse;
 use crate::kube::{KubeAgent, KubeAgentError};
 use rig::completion::ToolDefinition;
@@ -7,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::*;
 
+/// Tool for listing all namespaces in a Kubernetes cluster.
 pub struct ListNamespacesTool {
     kube_agent: KubeAgent,
 }
