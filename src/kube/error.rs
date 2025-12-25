@@ -4,6 +4,7 @@ use std::fmt;
 pub enum KubeAgentError {
     HttpError(reqwest::Error),
     JsonParseError(serde_json::Error),
+    ParseError(String),
 }
 
 impl fmt::Display for KubeAgentError {
@@ -11,6 +12,7 @@ impl fmt::Display for KubeAgentError {
         match self {
             KubeAgentError::HttpError(err) => write!(f, "HTTP request error: {}", err),
             KubeAgentError::JsonParseError(err) => write!(f, "JSON parsing error: {}", err),
+            KubeAgentError::ParseError(err) => write!(f, "Parse error: {}", err),
         }
     }
 }
@@ -20,6 +22,7 @@ impl std::error::Error for KubeAgentError {
         match self {
             KubeAgentError::HttpError(err) => Some(err),
             KubeAgentError::JsonParseError(err) => Some(err),
+            KubeAgentError::ParseError(_) => None,
         }
     }
 }

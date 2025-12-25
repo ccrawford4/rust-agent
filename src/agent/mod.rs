@@ -1,7 +1,7 @@
 pub mod tools;
 
 use crate::environment::Environment;
-use crate::kube::{KubeAgent, ListNamespacesTool, ListPodsTool};
+use crate::kube::{KubeAgent, ListNamespacesTool, ListPodsTool, NodeMetricsTool};
 use rig::client::CompletionClient;
 use rig::completion::{Message, Prompt, PromptError};
 use rig::providers::openai::{self, responses_api::ResponsesCompletionModel};
@@ -33,7 +33,8 @@ impl Agent {
             .tool(WebSearch)
             .tool(ProfileUrlList)
             .tool(ListPodsTool::new(kube_agent.clone()))
-            .tool(ListNamespacesTool::new(kube_agent))
+            .tool(ListNamespacesTool::new(kube_agent.clone()))
+            .tool(NodeMetricsTool::new(kube_agent))
             .build();
 
         info!("Agent built successfully with web search tool and structured output");
