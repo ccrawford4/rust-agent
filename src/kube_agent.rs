@@ -1,5 +1,48 @@
+use rig::completion::ToolDefinition;
+use rig::tool::Tool;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
+use std::fmt;
 use tracing::*;
+
+#[derive(Debug)]
+pub enum KubeAgentError {
+    HttpError(reqwest::Error),
+    JsonParseError(serde_json::Error),
+    ApiError(String),
+}
+
+impl fmt::Display for KubeAgentError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            KubeAgentError::HttpError(err) => write!(f, "HTTP request error: {}", err),
+            KubeAgentError::JsonParseError(err) => write!(f, "JSON parsing error: {}", err),
+            KubeAgentError::ApiError(msg) => write!(f, "Kubernetes API error: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for KubeAgentError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            KubeAgentError::HttpError(err) => Some(err),
+            KubeAgentError::JsonParseError(err) => Some(err),
+            KubeAgentError::ApiError(_) => None,
+        }
+    }
+}
+
+impl From<reqwest::Error> for KubeAgentError {
+    fn from(err: reqwest::Error) -> Self {
+        KubeAgentError::HttpError(err)
+    }
+}
+
+impl From<serde_json::Error> for KubeAgentError {
+    fn from(err: serde_json::Error) -> Self {
+        KubeAgentError::JsonParseError(err)
+    }
+}
 
 pub struct KubeAgent {
     kube_api_server: String,
@@ -88,7 +131,10 @@ impl PodListResponse {
             }
 
             if let Some(spec) = &pod.spec {
-                output.push_str(&format!("  Node: {}\n", spec.node_name.as_deref().unwrap_or("N/A")));
+                output.push_str(&format!(
+                    "  Node: {}\n",
+                    spec.node_name.as_deref().unwrap_or("N/A")
+                ));
                 output.push_str("  Containers:\n");
                 for container in &spec.containers {
                     output.push_str(&format!("    - {}\n", container.name));
@@ -96,7 +142,10 @@ impl PodListResponse {
                     if let Some(ports) = &container.ports {
                         output.push_str("      Ports:\n");
                         for port in ports {
-                            output.push_str(&format!("        {}:{}\n", port.container_port, port.protocol));
+                            output.push_str(&format!(
+                                "        {}:{}\n",
+                                port.container_port, port.protocol
+                            ));
                         }
                     }
                 }
@@ -110,7 +159,10 @@ impl PodListResponse {
                 if let Some(conditions) = &status.conditions {
                     output.push_str("  Conditions:\n");
                     for condition in conditions {
-                        output.push_str(&format!("    {}: {}\n", condition.type_field, condition.status));
+                        output.push_str(&format!(
+                            "    {}: {}\n",
+                            condition.type_field, condition.status
+                        ));
                     }
                 }
             }
@@ -130,39 +182,7 @@ impl KubeAgent {
         };
     }
 
-    pub async fn get_pods(
-        &self,
-        namespace: Option<String>,
-        limit: Option<u32>,
-    ) -> Result<String, Box<dyn std::error::Error>> {
-        // https://localhost:50220/api/v1/namespaces/default/pods?limit=500
-        let mut namespace_path = String::from("default");
-        let mut limit_query: u32 = 500;
-
-        // Override defaults if provided
-        if let Some(ns) = namespace {
-            namespace_path = ns;
-        }
-        if let Some(lim) = limit {
-            limit_query = lim;
-        }
-
-        // Construct endpoint
-        let endpoint = format!(
-            "/api/v1/namespaces/{}/pods?limit={}",
-            namespace_path, limit_query
-        );
-
-        let response = self.make_request(endpoint).await?;
-
-        // Parse the JSON response
-        let pod_list: PodListResponse = serde_json::from_str(&response)?;
-
-        // Return the formatted string
-        Ok(pod_list.as_string())
-    }
-
-    async fn make_request(&self, endpoint: String) -> Result<String, reqwest::Error> {
+    async fn make_request(&self, endpoint: String) -> Result<String, KubeAgentError> {
         // Connect to the kube api server
         info!(
             "Connecting to Kubernetes API server at {}",
@@ -193,38 +213,100 @@ impl KubeAgent {
                     Ok(body) => Ok(body),
                     Err(err) => {
                         error!("Error reading response body: {}", err);
-                        Err(err)
+                        Err(KubeAgentError::from(err))
                     }
                 }
             }
             Err(err) => {
                 error!("Error sending request to Kubernetes API server: {}", err);
-                Err(err)
+                Err(KubeAgentError::from(err))
             }
         }
     }
 }
 
-// TODO:
-// 1. Connect to minikube and setup a service account and token for the service account to
-//    authenticate
-//
-//    Public Agent:
-//
-// 2. Update the env + this module to use the token so we can connect to the k8s api server
-//    directly (k3s also uses token auth so this method should work for both!)
-//
-//
-//  Some operations we will want (very locked down)
-//  - Pods (list the pods and their names)
-//  - Cluster info (memory, cpu, etc)
-//  - Namespaces (how many, names)
-//
-//  NO Logs, service accounts, or any other info will be exposed to the agent!
-//
-//
-//  Private agent (long term):
-//  - Setup a private agent that can actually modify pods/deployments/etc
-//  - Create new deployments
-//  - Output the results as yaml/json
-//  - Cut a PR to introduce the change!
+pub struct ListPodsTool {
+    kube_agent: KubeAgent,
+}
+
+impl ListPodsTool {
+    pub fn new(kube_agent: KubeAgent) -> Self {
+        ListPodsTool { kube_agent }
+    }
+
+    pub async fn list_pods(
+        &self,
+        namespace: Option<String>,
+        limit: Option<u32>,
+    ) -> Result<String, KubeAgentError> {
+        // https://localhost:50220/api/v1/namespaces/default/pods?limit=500
+        let mut namespace_path = String::from("default");
+        let mut limit_query: u32 = 500;
+
+        // Override defaults if provided
+        if let Some(ns) = namespace {
+            namespace_path = ns;
+        }
+        if let Some(lim) = limit {
+            limit_query = lim;
+        }
+
+        // Construct endpoint
+        let endpoint = format!(
+            "/api/v1/namespaces/{}/pods?limit={}",
+            namespace_path, limit_query
+        );
+
+        let response = self.kube_agent.make_request(endpoint).await?;
+
+        debug!("Kubernetes API response: {}", response);
+
+        // Parse the JSON response
+        let pod_list: PodListResponse = serde_json::from_str(&response).map_err(|e| {
+            error!("Error parsing JSON response: {}", e);
+            KubeAgentError::from(e)
+        })?;
+
+        // Return the formatted string
+        Ok(pod_list.as_string())
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ListPodsToolArgs {
+    pub namespace: Option<String>,
+    pub limit: Option<u32>,
+}
+
+impl Tool for ListPodsTool {
+    const NAME: &'static str = "list_pods";
+    type Args = ListPodsToolArgs;
+    type Output = String;
+    type Error = KubeAgentError;
+
+    async fn definition(&self, _prompt: String) -> ToolDefinition {
+        serde_json::from_value(json!({
+            "name": "list_pods",
+            "description": "List pods in a Kubernetes cluster namespace",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "namespace": {
+                        "type": "string",
+                        "description": "The namespace to list pods from (default is 'default')"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of pods to return (default is 500)"
+                    }
+                },
+                "required": []
+            }
+        }))
+        .unwrap()
+    }
+
+    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        self.list_pods(args.namespace, args.limit).await
+    }
+}

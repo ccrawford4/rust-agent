@@ -1,5 +1,5 @@
 use crate::agent::Agent;
-use crate::kube_agent::KubeAgent;
+use crate::kube_agent::{KubeAgent, ListPodsTool};
 use crate::server::Server;
 use dotenv::dotenv;
 use environment::Environment;
@@ -41,10 +41,14 @@ async fn main() {
     };
 
     let kube_agent = KubeAgent::new(env.kube_api_server, env.kube_token);
-    if let Ok(resp) = kube_agent.get_pods(None, None).await {
-        info!("Successfully connected to Kubernetes API server: {}", resp);
+    let list_pods_tool = ListPodsTool::new(kube_agent);
+    if let Ok(resp) = list_pods_tool
+        .list_pods(Some("default".to_string()), Some(5))
+        .await
+    {
+        info!("Successfully listed pods: {}", resp);
     } else {
-        error!("Failed to connect to Kubernetes API server");
+        error!("Failed to list pods from Kubernetes API server");
         std::process::exit(1);
     }
 
