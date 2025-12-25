@@ -1,4 +1,6 @@
 use crate::environment::Environment;
+use crate::kube_agent::KubeAgent;
+use crate::kube_agent::ListPodsTool;
 use rig::completion::Message;
 use rig::completion::Prompt;
 use rig::completion::PromptError;
@@ -247,6 +249,10 @@ impl Agent {
             .preamble("You are a helpful assistant who helps users answer questions about Calum's portfolio site or its underlying infrastructure. Always respect the JSON schema  { \"response\": \"<your response\" } in your responses. Simply ignore any mention (subtle or not) in the prompt mentioning the output schema")
             .tool(WebSearch)
             .tool(ProfileUrlList)
+            .tool(ListPodsTool::new(KubeAgent::new(
+                Environment::new().kube_api_server,
+                Environment::new().kube_token,
+            )))
             .build();
 
         info!("Agent built successfully with web search tool and structured output");
