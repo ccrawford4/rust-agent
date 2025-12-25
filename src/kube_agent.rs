@@ -1,5 +1,3 @@
-use std::io::Write;
-use std::net::TcpStream;
 use tracing::*;
 
 pub struct KubeAgent {
@@ -15,11 +13,11 @@ impl KubeAgent {
         };
     }
 
-    pub fn get_pods(
+    pub async fn get_pods(
         &self,
         namespace: Option<String>,
         limit: Option<u32>,
-    ) -> Result<String, std::io::Error> {
+    ) -> Result<String, reqwest::Error> {
         // https://localhost:50220/api/v1/namespaces/default/pods?limit=500
         let mut namespace_path = String::from("default");
         let mut limit_query: u32 = 500;
@@ -38,48 +36,47 @@ impl KubeAgent {
             namespace_path, limit_query
         );
 
-        self.make_request(endpoint)
+        self.make_request(endpoint).await
     }
 
-    fn make_request(&self, endpoint: String) -> Result<String, std::io::Error> {
+    async fn make_request(&self, endpoint: String) -> Result<String, reqwest::Error> {
         // Connect to the kube api server
         info!(
             "Connecting to Kubernetes API server at {}",
             self.kube_api_server
         );
 
-        if let Err(err) = TcpStream::connect(self.kube_api_server.clone()) {
-            error!("Failed to connect to Kubernetes API server: {}", err);
-            return Err(err);
-        }
-
-        let mut stream = TcpStream::connect(self.kube_api_server.clone()).unwrap();
-
-        // Make the GET request with the token in the header
-        let request = format!(
-            "GET {} HTTP/1.1\r\n\
-         User-Agent: Rust-Client/1.0\r\n\
-         Authorization: Bearer {}\r\n\
-         \r\n", // The crucial blank line that ends the header section
-            endpoint, self.token
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            "Authorization",
+            format!("Bearer {}", self.token).parse().unwrap(),
         );
 
-        info!(
-            "Making request to endpoint: {}. (Request: {})",
-            endpoint, request
-        );
+        let client = reqwest::Client::builder()
+            .default_headers(headers)
+            .danger_accept_invalid_certs(true) // Accept invalid certs for local clusters
+            .build()
+            .unwrap();
 
-        // If we fail to write, return the error
-        if let Err(err) = stream.write(request.as_bytes()) {
-            error!("Failed to write to stream: {}", err);
-            return Err(err);
-        } else {
-            let mut response = String::new();
-            if let Err(err) = std::io::Read::read_to_string(&mut stream, &mut response) {
-                error!("Failed to read from stream: {}", err);
-                return Err(err);
-            } else {
-                return Ok(response);
+        let request = client
+            .get(format!("{}{}", self.kube_api_server, endpoint))
+            .send()
+            .await;
+
+        match request {
+            Ok(resp) => {
+                let text = resp.text().await;
+                match text {
+                    Ok(body) => Ok(body),
+                    Err(err) => {
+                        error!("Error reading response body: {}", err);
+                        Err(err)
+                    }
+                }
+            }
+            Err(err) => {
+                error!("Error sending request to Kubernetes API server: {}", err);
+                Err(err)
             }
         }
     }

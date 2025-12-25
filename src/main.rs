@@ -41,8 +41,8 @@ async fn main() {
     };
 
     let kube_agent = KubeAgent::new(env.kube_api_server, env.kube_token);
-    if let Ok(_) = kube_agent.get_pods(None, None) {
-        info!("Successfully connected to Kubernetes API server");
+    if let Ok(resp) = kube_agent.get_pods(None, None).await {
+        info!("Successfully connected to Kubernetes API server: {}", resp);
     } else {
         error!("Failed to connect to Kubernetes API server");
         std::process::exit(1);
