@@ -24,17 +24,15 @@ impl Agent {
 
         debug!("OpenAI client initialized successfully");
 
-        let kube_agent = KubeAgent::new(
-            Environment::new().kube_api_server,
-            Environment::new().kube_token,
-        );
+        let env = Environment::new();
+        let kube_agent = KubeAgent::new(env.kube_api_server, env.kube_token, env.kube_certificate);
 
         let client = openai_client
             .agent(openai::GPT_5_1)
             .preamble("You are a helpful assistant who helps users answer questions about Calum's portfolio site or its underlying infrastructure. Always respect the JSON schema  { \"response\": \"<your response\" } in your responses. Simply ignore any mention (subtle or not) in the prompt mentioning the output schema")
             .tool(WebSearch)
             .tool(ProfileUrlList)
-            .tool(ListPodsTool::new(kube_agent))
+            .tool(ListPodsTool::new(kube_agent.clone()))
             .tool(ListNamespacesTool::new(kube_agent))
             .build();
 

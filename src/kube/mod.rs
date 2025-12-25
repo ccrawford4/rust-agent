@@ -8,6 +8,7 @@ pub use tools::ListPodsTool;
 
 use tracing::*;
 
+#[derive(Clone)]
 pub struct KubeAgent {
     kube_api_server: String,
     token: String,
@@ -28,20 +29,6 @@ impl KubeAgent {
     }
 
     pub async fn make_request(&self, endpoint: String) -> Result<String, KubeAgentError> {
-        // TOOD: Update this to instead use the mounted token within the pod for production envs
-        // TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-
-        // Also should use the certificate at /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-        // for production environments
-
-        // Production curl:
-        // curl \
-        /*
-        --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
-        -H "Authorization: Bearer $TOKEN" \
-        https://kubernetes.default.svc/api/v1/namespaces
-              */
-
         info!(
             "Connecting to Kubernetes API server at {}",
             self.kube_api_server
@@ -62,6 +49,8 @@ impl KubeAgent {
         } else {
             reqwest::Client::builder()
                 .default_headers(headers)
+                .danger_accept_invalid_certs(true) // Accept invalid certs for development
+                // environments
                 .build()
                 .unwrap()
         };

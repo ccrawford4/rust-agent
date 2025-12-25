@@ -69,7 +69,7 @@ impl Tool for ListNamespacesTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         serde_json::from_value(json!({
             "name": Self::NAME,
-            "description": "Lists all namespaces in the Kubernetes cluster.",
+            "description": "List all namespaces in the Kubernetes cluster.",
             "parameters": {
                 "type": "object",
                 "properties": {},
@@ -79,7 +79,7 @@ impl Tool for ListNamespacesTool {
         .unwrap()
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
         self.list_namespaces().await
     }
 }
