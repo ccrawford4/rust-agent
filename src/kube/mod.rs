@@ -22,6 +22,11 @@ impl KubeAgent {
     }
 
     pub async fn make_request(&self, endpoint: String) -> Result<String, KubeAgentError> {
+        // TOOD: Update this to instead use the mounted token within the pod for production envs
+        // TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+
+        // Also should use the certificate at /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        // for production environments
         info!(
             "Connecting to Kubernetes API server at {}",
             self.kube_api_server
