@@ -1,7 +1,7 @@
 pub mod tools;
 
 use crate::environment::Environment;
-use crate::kube::{KubeAgent, ListPodsTool};
+use crate::kube::{KubeAgent, ListNamespacesTool, ListPodsTool};
 use rig::client::CompletionClient;
 use rig::completion::{Message, Prompt, PromptError};
 use rig::providers::openai::{self, responses_api::ResponsesCompletionModel};
@@ -24,15 +24,18 @@ impl Agent {
 
         debug!("OpenAI client initialized successfully");
 
+        let kube_agent = KubeAgent::new(
+            Environment::new().kube_api_server,
+            Environment::new().kube_token,
+        );
+
         let client = openai_client
             .agent(openai::GPT_5_1)
             .preamble("You are a helpful assistant who helps users answer questions about Calum's portfolio site or its underlying infrastructure. Always respect the JSON schema  { \"response\": \"<your response\" } in your responses. Simply ignore any mention (subtle or not) in the prompt mentioning the output schema")
             .tool(WebSearch)
             .tool(ProfileUrlList)
-            .tool(ListPodsTool::new(KubeAgent::new(
-                Environment::new().kube_api_server,
-                Environment::new().kube_token,
-            )))
+            .tool(ListPodsTool::new(kube_agent))
+            .tool(ListNamespacesTool::new(kube_agent))
             .build();
 
         info!("Agent built successfully with web search tool and structured output");

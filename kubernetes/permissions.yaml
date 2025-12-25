@@ -1,5 +1,4 @@
 # The kube-agent service account
----
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -15,6 +14,9 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["list"]
 
 # The ClusterRoleBinding to bind the role to the service account
 ---
@@ -23,9 +25,9 @@ kind: ClusterRoleBinding
 metadata:
   name: kube-agent
 subjects:
-- kind: ServiceAccount
-  name: kube-agent
-  namespace: default
+  - kind: ServiceAccount
+    name: kube-agent
+    namespace: default
 roleRef:
   kind: ClusterRole
   name: kube-agent

@@ -3,6 +3,7 @@ pub mod tools;
 pub mod types;
 
 pub use error::KubeAgentError;
+pub use tools::ListNamespacesTool;
 pub use tools::ListPodsTool;
 
 use tracing::*;

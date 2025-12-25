@@ -1,5 +1,6 @@
 use crate::agent::Agent;
 use crate::environment::Environment;
+use crate::kube::{KubeAgent, ListPodsTool};
 use crate::server::Server;
 use dotenv::dotenv;
 use tracing::{error, info};
@@ -39,10 +40,9 @@ async fn main() {
         }
     };
 
-    if let Ok(pod_list) =
-        kube::ListPodsTool::new(kube::KubeAgent::new(env.kube_api_server, env.kube_token))
-            .list_pods(None, None)
-            .await
+    if let Ok(pod_list) = ListPodsTool::new(KubeAgent::new(env.kube_api_server, env.kube_token))
+        .list_pods(None, None)
+        .await
     {
         info!(
             "Successfully connected to Kubernetes cluster. Found {} pods.",
