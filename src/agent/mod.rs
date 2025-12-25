@@ -31,6 +31,8 @@ impl Agent {
     pub fn new(api_key: String) -> Result<Self, Box<dyn Error>> {
         info!("Initializing AI agent with OpenAI backend");
 
+        debug!("open ai api key: {}", &api_key);
+
         let openai_client = openai::Client::<reqwest::Client>::new(api_key).map_err(|e| {
             error!("Failed to create OpenAI client: {}", e);
             e

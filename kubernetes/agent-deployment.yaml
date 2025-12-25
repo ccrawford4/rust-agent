@@ -5,7 +5,7 @@ metadata:
   labels:
     app: kube-agent
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: kube-agent
@@ -17,6 +17,21 @@ spec:
       serviceAccountName: kube-agent
       containers:
         - name: kube-agent
-          image: ccrawford4/ai-agent-api:latest
+          image: ccrawford4/ai-agent-api:v0.0.1
           ports:
             - containerPort: 8080
+          env:
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: kube-agent-secrets
+                  key: openai-api-key
+            - name: CHAT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: kube-agent-secrets
+                  key: chat-api-key
+            - name: PRODUCTION_MODE
+              value: "true"
+            - name: KUBE_API_SERVER
+              value: "https://kubernetes.default.svc"
