@@ -1,6 +1,6 @@
 # AI Agent API Server
 
-A production-ready RESTful API server built in Rust that provides AI-powered insights about a portfolio website and its underlying Kubernetes infrastructure. Uses OpenAI's GPT-5.1 model with tool-calling capabilities to answer questions by fetching real-time data from web sources and Kubernetes clusters.
+A RESTful API server built in Rust that provides AI-powered insights about my [portfolio website](https://about.calum.run) and its underlying Kubernetes infrastructure. 
 
 ## Features
 
@@ -8,8 +8,6 @@ A production-ready RESTful API server built in Rust that provides AI-powered ins
 - **Kubernetes Integration**: Real-time access to pod listings, namespaces, and node metrics
 - **Portfolio Scraping**: Fetches content from portfolio website sections (About, Work, Projects, Contact)
 - **Secure Authentication**: API key-based request authentication
-- **Production Ready**: Supports both development and production deployment modes
-- **Comprehensive Logging**: Structured logging with configurable log levels
 
 ## Prerequisites
 
@@ -23,15 +21,20 @@ A production-ready RESTful API server built in Rust that provides AI-powered ins
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/ccrawford4/rust-agent.git
    cd rust-agent
    ```
 
-2. **Create a `.env` file** in the project root:
+2. **Create a secure key to access the chat API**
+   ```bash
+   openssl rand -base64 32
+   ```
+
+3. **Create a `.env` file** in the project root:
    ```env
    # Required
    OPENAI_API_KEY=your_openai_api_key_here
-   CHAT_API_KEY=your_secure_api_key_for_authentication
+   CHAT_API_KEY=your_secure_api_key_for_authentication_from_step_2
 
    # Optional (defaults shown)
    PRODUCTION_MODE=false
@@ -40,13 +43,13 @@ A production-ready RESTful API server built in Rust that provides AI-powered ins
    RUST_LOG=info
    ```
 
-3. **Build and run**
+4. **Build and run**
    ```bash
    cargo build --release
    cargo run --release
    ```
 
-4. **Test the server**
+5. **Test the server**
    ```bash
    # Health check
    curl -H "X-API-Key: your_secure_api_key_for_authentication" \
@@ -309,11 +312,3 @@ cargo clippy
 ### 401/403 responses
 - Ensure `X-API-Key` header is included in request
 - Verify the API key matches `CHAT_API_KEY` environment variable
-
-## License
-
-[Add your license here]
-
-## Contributing
-
-[Add contribution guidelines here]
