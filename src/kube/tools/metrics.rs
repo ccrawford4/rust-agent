@@ -1,6 +1,6 @@
-use reqwest::Error;
 use rig::completion::ToolDefinition;
 use rig::tool::Tool;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 // See pod and container metrics (cpu/memory)
 //
@@ -21,23 +21,31 @@ impl NodeMetricsTool {
     }
 
     /// Fetch node metrics from the metrics server API
-    pub async fn get_node_metrics(&self) -> Result<String, KubeAgentError> {
+    pub async fn get_node_metrics(&self) -> Result<NodeMetricsListResponse, KubeAgentError> {
         let endpoint = String::from("/apis/metrics.k8s.io/v1beta1/nodes");
         let response = self.kube_agent.make_request(endpoint).await?;
 
-        debug!("Kubernetes API response: {}", response);
+        let metrics: NodeMetricsListResponse = serde_json::from_str(&response).map_err(|e| {
+            error!("Error parsing node metrics JSON response: {}", e);
+            KubeAgentError::from(e)
+        })?;
 
-        Ok(response)
+        Ok(metrics)
     }
 
     /// Fetch node information from the core API
-    pub async fn get_nodes(&self) -> Result<String, KubeAgentError> {
+    pub async fn get_nodes(&self) -> Result<NodeListResponse, KubeAgentError> {
         let endpoint = String::from("/api/v1/nodes");
         let response = self.kube_agent.make_request(endpoint).await?;
 
         debug!("Kubernetes API response: {}", response);
 
-        Ok(response)
+        let nodes: NodeListResponse = serde_json::from_str(&response).map_err(|e| {
+            error!("Error parsing nodes JSON response: {}", e);
+            KubeAgentError::from(e)
+        })?;
+
+        Ok(nodes)
     }
 
     /// Fetch both node info and metrics, then combine them to show usage with percentages
@@ -45,36 +53,26 @@ impl NodeMetricsTool {
         &self,
     ) -> Result<NodeMetricsWithUsageResponse, KubeAgentError> {
         // Fetch both APIs in parallel
-        let (nodes_response, metrics_response) =
+        let (nodes_result, metrics_result) =
             tokio::join!(self.get_nodes(), self.get_node_metrics());
 
-        let nodes_json = nodes_response?;
-        let metrics_json = metrics_response?;
+        let nodes = nodes_result?;
+        let metrics = metrics_result?;
 
-        // Parse the JSON responses
-        if let Ok(nodes) = serde_json::from_str(&nodes_json) {
-            if let Ok(metrics) = serde_json::from_str::<NodeMetricsListResponse>(&metrics_json) {
-                debug!("Parsed Nodes: {:?}", nodes);
-                debug!("Parsed Node Metrics: {:?}", metrics);
+        debug!("Parsed Nodes: {:?}", nodes);
+        debug!("Parsed Node Metrics: {:?}", metrics);
 
-                // Combine the data
-                metrics.combine_with_nodes(&nodes)
-            } else {
-                Err(KubeAgentError::JsonParseError(Error::new(
-                    "Failed to parse node metrics JSON".to_string(),
-                )))
-            }
-        } else {
-            Err(KubeAgentError::JsonParseError(
-                "Failed to parse nodes or metrics JSON".to_string(),
-            ))
-        }
+        // Combine the data
+        metrics.combine_with_nodes(&nodes)
     }
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct NodeMetricsToolArgs {}
+
 impl Tool for NodeMetricsTool {
     const NAME: &'static str = "get_node_metrics";
-    type Args = ();
+    type Args = NodeMetricsToolArgs;
     type Output = NodeMetricsWithUsageResponse;
     type Error = KubeAgentError;
 
