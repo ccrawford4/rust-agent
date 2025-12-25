@@ -39,6 +39,19 @@ async fn main() {
         }
     };
 
+    if let Ok(pod_list) =
+        kube::ListPodsTool::new(kube::KubeAgent::new(env.kube_api_server, env.kube_token))
+            .list_pods(None, None)
+            .await
+    {
+        info!(
+            "Successfully connected to Kubernetes cluster. Found {} pods.",
+            pod_list
+        );
+    } else {
+        error!("Failed to connect to Kubernetes cluster.");
+    }
+
     let server = Server::new(agent, "127.0.0.1:8080".to_string(), env.chat_api_key);
 
     info!("Server initialized, listening on 127.0.0.1:8080");
