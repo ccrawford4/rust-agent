@@ -12,7 +12,7 @@ metadata:
   name: kube-agent
 rules:
   - apiGroups: [""]
-    resources: ["pods", "namespaces"]
+    resources: ["pods", "namespaces", "nodes"]
     verbs: ["get", "list", "watch"]
 
 # The ClusterRoleBinding to bind the role to the service account

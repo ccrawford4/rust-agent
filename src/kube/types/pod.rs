@@ -11,17 +11,8 @@ pub struct PodMetadata {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ContainerSpecPort {
-    #[serde(rename = "containerPort")]
-    pub container_port: u16,
-    pub protocol: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
 pub struct ContainerSpec {
     pub name: String,
-    pub image: String,
-    pub ports: Option<Vec<ContainerSpecPort>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -89,16 +80,6 @@ impl PodListResponse {
                 output.push_str("  Containers:\n");
                 for container in &spec.containers {
                     output.push_str(&format!("    - {}\n", container.name));
-                    output.push_str(&format!("      Image: {}\n", container.image));
-                    if let Some(ports) = &container.ports {
-                        output.push_str("      Ports:\n");
-                        for port in ports {
-                            output.push_str(&format!(
-                                "        {}:{}\n",
-                                port.container_port, port.protocol
-                            ));
-                        }
-                    }
                 }
             }
 
