@@ -59,7 +59,16 @@ async fn main() {
         warn!("Failed to connect to Kubernetes cluster. AI agent will have limited functionality.");
     }
 
-    let server = Server::new(agent, "127.0.0.1:8080".to_string(), env.chat_api_key);
+    // In production environments, k8s treats pods as first-class-citizens, so we bind it to the
+    // "host" interface to allow external access. On local/dev environments, we bind to localhost
+    // only.
+    let host = if env.production_mode {
+        "0.0.0.0:8080".to_string()
+    } else {
+        "127.0.0.1:8080".to_string()
+    };
+
+    let server = Server::new(agent, host.to_string(), env.chat_api_key);
 
     info!("Server initialized, listening on 127.0.0.1:8080");
 
