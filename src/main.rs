@@ -70,8 +70,6 @@ async fn main() {
 
     let server = Server::new(agent, host.to_string(), env.chat_api_key);
 
-    info!("Server initialized, listening on 127.0.0.1:8080");
-
     if let Err(e) = server.listen().await {
         error!("Failed to start server: {}", e);
         std::process::exit(1);
