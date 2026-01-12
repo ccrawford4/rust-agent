@@ -1,4 +1,6 @@
 use crate::environment::Environment;
+use headless_chrome::protocol::cdp::Page;
+use headless_chrome::Browser;
 use rig::completion::ToolDefinition;
 use rig::tool::Tool;
 use serde::de::{self, Visitor};
@@ -220,5 +222,73 @@ impl Tool for ProfileUrlList {
         debug!("Providing profile URL list: {:?}", result);
 
         Ok(result)
+    }
+}
+
+/// Tool for fetching content from portfolio website sections with a headless browser.
+#[derive(Deserialize, Serialize)]
+pub struct WebSearchWithHeadlessBrowser {}
+
+impl Tool for WebSearchWithHeadlessBrowser {
+    const NAME: &'static str = "web_search_with_headless_browser";
+    type Error = ModelError;
+    type Args = WebSearchArgs;
+    type Output = String;
+
+    async fn definition(&self, _prompt: String) -> ToolDefinition {
+        serde_json::from_value(json!({
+            "name": "web_search_with_headless_browser",
+            "description": "search the web using a headless browswer (only for sites that require javascript)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "url to search"
+                    }
+                },
+                "required": ["url"]
+            }
+        }))
+        .unwrap_or_else(|e| {
+            error!("Critical error: Failed to create tool definition: {}", e);
+            panic!(
+                "Invalid static tool definition - this is a programming error: {}",
+                e
+            );
+        })
+    }
+
+    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        info!("Fetching web content from: {}", args.url);
+
+        let browser = Browser::default().map_err(|e| {
+            error!("Error launching headless browser: {}", e);
+            ModelError("Could not spin up headless browser!".to_string())
+        });
+
+        let tab = browser.unwrap().new_tab().map_err(|e| {
+            error!("Error creating new tab in headless browser: {}", e);
+            ModelError("Could not create new tab in headless browser!".to_string())
+        });
+
+        let navigation_result = tab
+            .as_ref()
+            .unwrap()
+            .navigate_to(&args.url.to_string())
+            .map_err(|e| {
+                error!("Error navigating to URL {}: {}", args.url, e);
+                ModelError("Could not navigate to url".to_string())
+            });
+
+        let content_result = navigation_result.unwrap().get_content().map_err(|e| {
+            error!("Error getting content from URL {}: {}", args.url, e);
+            ModelError("Could not read content from the site".to_string())
+        });
+
+        match content_result {
+            Ok(content) => Ok(content),
+            Err(e) => Err(e),
+        }
     }
 }
