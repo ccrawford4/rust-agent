@@ -1,3 +1,3 @@
 pub mod web_search;
 
-pub use web_search::{ProfileUrlList, WebSearch};
+pub use web_search::{ProfileUrlList, WebSearch, WebSearchWithHeadlessBrowser};

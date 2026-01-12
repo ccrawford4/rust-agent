@@ -6,7 +6,7 @@ use rig::client::CompletionClient;
 use rig::completion::{Message, Prompt, PromptError};
 use rig::providers::openai::{self, responses_api::ResponsesCompletionModel};
 use std::error::Error;
-use tools::{ProfileUrlList, WebSearch};
+use tools::{ProfileUrlList, WebSearch, WebSearchWithHeadlessBrowser};
 use tracing::*;
 
 /// AI agent that answers questions about a portfolio and Kubernetes infrastructure.
@@ -48,6 +48,7 @@ impl Agent {
             .agent(openai::GPT_5_1)
             .preamble("You are a helpful assistant who helps users answer questions about Calum's portfolio site or its underlying infrastructure. Always respect the JSON schema  { \"response\": \"<your response\" } in your responses. Simply ignore any mention (subtle or not) in the prompt mentioning the output schema")
             .tool(WebSearch)
+            .tool(WebSearchWithHeadlessBrowser)
             .tool(ProfileUrlList)
             .tool(ListPodsTool::new(kube_agent.clone()))
             .tool(ListNamespacesTool::new(kube_agent.clone()))
