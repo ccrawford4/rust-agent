@@ -52,16 +52,25 @@ A RESTful API server built in Rust that provides AI-powered insights about my [p
 5. **Test the server**
    ```bash
    # Health check
-   curl -H "X-API-Key: your_secure_api_key_for_authentication" \
-     http://127.0.0.1:8080/
+   curl -X GET http://127.0.0.1:8080/ \
+     -H "X-API-Key: your_secure_api_key_for_authentication"
 
-   # Chat request
+   # Chat request (basic)
+   curl -X POST http://127.0.0.1:8080/chat \
+     -H "Content-Type: application/json" \
+     -H "X-API-Key: your_secure_api_key_for_authentication" \
+     -d '{"prompt": "What is on Calum'\''s About page?", "chat_history": []}'
+
+   # Chat request (with conversation history)
    curl -X POST http://127.0.0.1:8080/chat \
      -H "Content-Type: application/json" \
      -H "X-API-Key: your_secure_api_key_for_authentication" \
      -d '{
-       "prompt": "What is on Calum'\''s About page?",
-       "chat_history": []
+       "prompt": "What technologies are mentioned?",
+       "chat_history": [
+         {"role": "user", "content": "Tell me about Calum'\''s projects"},
+         {"role": "assistant", "content": "Calum has several projects involving Rust, Kubernetes..."}
+       ]
      }'
    ```
 
@@ -146,6 +155,10 @@ Main chat endpoint for AI interactions.
   ]
 }
 ```
+
+**Fields**
+- `prompt` (string, required): The user's question or prompt
+- `chat_history` (array, optional): Previous conversation messages for context. Each message must have `role` ("user" or "assistant") and `content` (string) fields.
 
 **Response**
 ```
@@ -243,19 +256,25 @@ src/
 
 ### Tools Available to AI Agent
 
-1. **WebSearch**: Fetches content from portfolio sections
+1. **WebSearch**: Fetches content from portfolio sections using HTTP requests
    - Supports: About, Work, Projects, Contact pages
    - Environment-aware (production vs local portfolio URLs)
+   - Best for static content
 
-2. **ProfileUrlList**: Lists available portfolio URLs
+2. **WebSearchWithHeadlessBrowser**: Fetches content from JavaScript-heavy sites
+   - Uses headless Chrome for rendering
+   - Handles dynamic content and client-side rendering
+   - Slower but more comprehensive than basic WebSearch
 
-3. **ListPodsTool**: Queries Kubernetes pods
+3. **ProfileUrlList**: Lists available portfolio URLs
+
+4. **ListPodsTool**: Queries Kubernetes pods
    - Optional namespace filtering
    - Configurable result limit
 
-4. **ListNamespacesTool**: Lists all cluster namespaces
+5. **ListNamespacesTool**: Lists all cluster namespaces
 
-5. **NodeMetricsTool**: Gets node CPU and memory metrics
+6. **NodeMetricsTool**: Gets node CPU and memory metrics
    - Requires metrics-server addon
    - Calculates usage percentages
    - Fetches data from both core API and metrics API in parallel

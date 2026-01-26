@@ -1,5 +1,4 @@
 use crate::environment::Environment;
-use headless_chrome::protocol::cdp::Page;
 use headless_chrome::Browser;
 use rig::completion::ToolDefinition;
 use rig::tool::Tool;
@@ -227,7 +226,7 @@ impl Tool for ProfileUrlList {
 
 /// Tool for fetching content from portfolio website sections with a headless browser.
 #[derive(Deserialize, Serialize)]
-pub struct WebSearchWithHeadlessBrowser {}
+pub struct WebSearchWithHeadlessBrowser;
 
 impl Tool for WebSearchWithHeadlessBrowser {
     const NAME: &'static str = "web_search_with_headless_browser";
@@ -238,7 +237,7 @@ impl Tool for WebSearchWithHeadlessBrowser {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         serde_json::from_value(json!({
             "name": "web_search_with_headless_browser",
-            "description": "search the web using a headless browswer (only for sites that require javascript)",
+            "description": "search the web using a headless browswer (for sites that require javascript)",
             "parameters": {
                 "type": "object",
                 "properties": {
