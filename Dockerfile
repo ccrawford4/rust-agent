@@ -12,17 +12,24 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 # Build and cache depndencies
 FROM chef AS builder
+ARG TARGETARCH
 COPY --from=planner /usr/src/app/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
+RUN case "$TARGETARCH" in \
+      amd64) echo x86_64-unknown-linux-gnu > /rust_target ;; \
+      arm64) echo aarch64-unknown-linux-gnu > /rust_target ;; \
+    esac && \
+    rustup target add $(cat /rust_target) && \
+    cargo chef cook --release --target $(cat /rust_target) --recipe-path recipe.json
 
 # Build the source code
 COPY . .
-RUN cargo build --release
+RUN cargo build --release --target $(cat /rust_target) && \
+    cp target/$(cat /rust_target)/release/rust-agent /usr/local/bin/rust-agent
 
 # Use a slimmer image and install runtime dependencies
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y libssl3 ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # Copy the binary and execute
-COPY --from=builder /usr/src/app/target/release/rust-agent /usr/local/bin/rust-agent
+COPY --from=builder /usr/local/bin/rust-agent /usr/local/bin/rust-agent
 CMD ["rust-agent"]
