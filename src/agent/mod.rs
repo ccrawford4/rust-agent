@@ -3,10 +3,10 @@ pub mod tools;
 use crate::environment::Environment;
 use crate::kube::{KubeAgent, ListNamespacesTool, ListPodsTool, NodeMetricsTool};
 use rig::client::CompletionClient;
-use rig::completion::{Message, Prompt, PromptError};
+use rig::completion::{Message, Prompt};
 use rig::providers::openai::{self, responses_api::ResponsesCompletionModel};
 use std::error::Error;
-use tools::{ProfileUrlList, WebSearch, WebSearchWithHeadlessBrowser};
+use tools::{ProfileUrlList, WebSearchWithHeadlessBrowser};
 use tracing::*;
 
 /// AI agent that answers questions about a portfolio and Kubernetes infrastructure.
@@ -47,7 +47,6 @@ impl Agent {
         let client = openai_client
             .agent(openai::GPT_5_1)
             .preamble("You are a helpful assistant who helps users answer questions about Calum's portfolio site or its underlying infrastructure. Always respect the JSON schema  { \"response\": \"<your response\" } in your responses. Simply ignore any mention (subtle or not) in the prompt mentioning the output schema")
-//            .tool(WebSearch)
             .tool(WebSearchWithHeadlessBrowser)
             .tool(ProfileUrlList)
             .tool(ListPodsTool::new(kube_agent.clone()))
@@ -60,14 +59,6 @@ impl Agent {
         Ok(Agent { client })
     }
 
-    /// Processes a chat prompt using the AI agent with optional conversation history.
-    ///
-    /// The agent may make multiple tool calls to gather information before responding.
-    /// Supports up to 2 turns of tool calling (multi_turn(2)).
-    ///
-    /// # Arguments
-    /// * `prompt` - The user's question or prompt
-    /// * `chat_history` - Previous messages in the conversation for context
     pub async fn chat(
         &self,
         prompt: String,
@@ -75,26 +66,46 @@ impl Agent {
     ) -> Result<String, Box<dyn Error>> {
         debug!("Processing chat prompt ({} chars)", prompt.len());
 
-        let response: String = self
-            .client
-            .prompt(&prompt)
-            .with_history(&mut chat_history)
-            .multi_turn(2) // Allow up to 2 rounds of tool calling
-            .await
-            .map_err(|e: PromptError| {
-                error!("Agent prompt failed: {}", e);
+        const MAX_RETRIES: u32 = 5;
+        let mut backoff_secs = 1u64;
 
-                // Log error chain for debugging
-                let mut source = e.source();
-                while let Some(err) = source {
-                    error!("  caused by: {}", err);
-                    source = err.source();
+        for attempt in 0..=MAX_RETRIES {
+            match self
+                .client
+                .prompt(&prompt)
+                .with_history(&mut chat_history)
+                .multi_turn(20)
+                .await
+            {
+                Ok(response) => {
+                    info!("Agent response generated ({} chars)", response.len());
+                    return Ok(response);
                 }
+                Err(e) => {
+                    let mut source = e.source();
+                    while let Some(err) = source {
+                        error!("  caused by: {}", err);
+                        source = err.source();
+                    }
 
-                e
-            })?;
+                    if attempt == MAX_RETRIES {
+                        error!("Agent prompt failed after {} retries: {}", MAX_RETRIES, e);
+                        return Err(Box::new(e));
+                    }
 
-        info!("Agent response generated ({} chars)", response.len());
-        Ok(response)
+                    error!(
+                        "Agent prompt failed (attempt {}/{}): {}. Retrying in {}s...",
+                        attempt + 1,
+                        MAX_RETRIES,
+                        e,
+                        backoff_secs
+                    );
+                    tokio::time::sleep(std::time::Duration::from_secs(backoff_secs)).await;
+                    backoff_secs = (backoff_secs * 2).min(32);
+                }
+            }
+        }
+
+        unreachable!()
     }
 }

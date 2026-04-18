@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::error::Error;
 use std::fmt;
+use std::time::Duration;
 use tracing::*;
 
 /// Valid URLs for the portfolio site sections.
@@ -23,7 +24,7 @@ fn get_portfolio_host() -> String {
     if env.production_mode {
         "https://about.calum.sh".to_string()
     } else {
-        "https://about.calum.sh".to_string()
+        "http://localhost:3000".to_string()
     }
 }
 
@@ -263,22 +264,22 @@ impl Tool for WebSearchWithHeadlessBrowser {
             ModelError("Could not create new tab in headless browser!".to_string())
         })?;
 
-        let navigation_result = tab
-            .navigate_to("https://wikipedia.org")
-            //            .navigate_to(&args.url.to_string())
-            .map_err(|e| {
-                error!("Error navigating to URL {}: {}", args.url, e);
-                ModelError("Could not navigate to url".to_string())
-            });
+        let _nav_result = tab.navigate_to(&args.url.to_string()).map_err(|e| {
+            error!("Error navigating to URL {}: {}", args.url, e);
+            ModelError("Could not navigate to url".to_string())
+        })?;
 
-        let content_result = navigation_result.unwrap().get_content().map_err(|e| {
+        tab.wait_for_element_with_custom_timeout("main", Duration::from_secs(5))
+            .map_err(|e| {
+                error!("Timeout waiting for content to render: {}", e);
+                ModelError("Content did not render in time".to_string())
+            })?;
+
+        std::thread::sleep(Duration::from_millis(200));
+
+        tab.get_content().map_err(|e| {
             error!("Error getting content from URL {}: {}", args.url, e);
             ModelError("Could not read content from the site".to_string())
-        });
-
-        match content_result {
-            Ok(content) => Ok(content),
-            Err(e) => Err(e),
-        }
+        })
     }
 }
