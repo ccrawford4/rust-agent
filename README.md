@@ -58,7 +58,7 @@ A RESTful API server built in Rust that provides AI-powered insights about my [p
    # Chat request (basic)
    curl -X POST http://127.0.0.1:8080/chat \
      -H "Content-Type: application/json" \
-     -H "X-API-Key: your_secure_api_key_for_authentication" \
+     -H "X-API-Key: 20W6y75LJKvVfh6BKkVTD2/+7WZyRNYSXVsP1NefJrw=" \
      -d '{"prompt": "What is on Calum'\''s About page?", "chat_history": []}'
 
    # Chat request (with conversation history)

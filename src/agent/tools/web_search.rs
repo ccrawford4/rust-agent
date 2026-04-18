@@ -23,7 +23,7 @@ fn get_portfolio_host() -> String {
     if env.production_mode {
         "https://about.calum.sh".to_string()
     } else {
-        "http://localhost:3000".to_string()
+        "https://about.calum.sh".to_string()
     }
 }
 
@@ -59,16 +59,12 @@ impl<'de> Visitor<'de> for ProfileUrlVisitor {
         E: de::Error,
     {
         match value {
-            "https://about.calum.sh/?tab=About" | "http://localhost:3000/?tab=About" => {
-                Ok(ProfileUrl::About)
-            }
-            "https://about.calum.sh/?tab=Work" | "http://localhost:3000/?tab=Work" => {
-                Ok(ProfileUrl::Work)
-            }
-            "https://about.calum.sh/?tab=Projects" | "http://localhost:3000/?tab=Projects" => {
+            "https://about.calum.sh/?tab=About" | "http:///?tab=About" => Ok(ProfileUrl::About),
+            "https://about.calum.sh/?tab=Work" | "http:///?tab=Work" => Ok(ProfileUrl::Work),
+            "https://about.calum.sh/?tab=Projects" | "http:///?tab=Projects" => {
                 Ok(ProfileUrl::Projects)
             }
-            "https://about.calum.sh/?tab=Contact" | "http://localhost:3000/?tab=Contact" => {
+            "https://about.calum.sh/?tab=Contact" | "http:///?tab=Contact" => {
                 Ok(ProfileUrl::Contact)
             }
             _ => Err(de::Error::unknown_variant(
@@ -78,10 +74,6 @@ impl<'de> Visitor<'de> for ProfileUrlVisitor {
                     "https://about.calum.sh/?tab=Work",
                     "https://about.calum.sh/?tab=Projects",
                     "https://about.calum.sh/?tab=Contact",
-                    "http://localhost:3000/?tab=About",
-                    "http://localhost:3000/?tab=Work",
-                    "http://localhost:3000/?tab=Projects",
-                    "http://localhost:3000/?tab=Contact",
                 ],
             )),
         }
@@ -264,17 +256,16 @@ impl Tool for WebSearchWithHeadlessBrowser {
         let browser = Browser::default().map_err(|e| {
             error!("Error launching headless browser: {}", e);
             ModelError("Could not spin up headless browser!".to_string())
-        });
+        })?;
 
-        let tab = browser.unwrap().new_tab().map_err(|e| {
+        let tab = browser.new_tab().map_err(|e| {
             error!("Error creating new tab in headless browser: {}", e);
             ModelError("Could not create new tab in headless browser!".to_string())
-        });
+        })?;
 
         let navigation_result = tab
-            .as_ref()
-            .unwrap()
-            .navigate_to(&args.url.to_string())
+            .navigate_to("https://wikipedia.org")
+            //            .navigate_to(&args.url.to_string())
             .map_err(|e| {
                 error!("Error navigating to URL {}: {}", args.url, e);
                 ModelError("Could not navigate to url".to_string())
