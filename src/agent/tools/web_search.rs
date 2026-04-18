@@ -21,7 +21,7 @@ pub enum ProfileUrl {
 fn get_portfolio_host() -> String {
     let env = Environment::new();
     if env.production_mode {
-        "https://about.calum.run".to_string()
+        "https://about.calum.sh".to_string()
     } else {
         "http://localhost:3000".to_string()
     }
@@ -59,25 +59,25 @@ impl<'de> Visitor<'de> for ProfileUrlVisitor {
         E: de::Error,
     {
         match value {
-            "https://about.calum.run/?tab=About" | "http://localhost:3000/?tab=About" => {
+            "https://about.calum.sh/?tab=About" | "http://localhost:3000/?tab=About" => {
                 Ok(ProfileUrl::About)
             }
-            "https://about.calum.run/?tab=Work" | "http://localhost:3000/?tab=Work" => {
+            "https://about.calum.sh/?tab=Work" | "http://localhost:3000/?tab=Work" => {
                 Ok(ProfileUrl::Work)
             }
-            "https://about.calum.run/?tab=Projects" | "http://localhost:3000/?tab=Projects" => {
+            "https://about.calum.sh/?tab=Projects" | "http://localhost:3000/?tab=Projects" => {
                 Ok(ProfileUrl::Projects)
             }
-            "https://about.calum.run/?tab=Contact" | "http://localhost:3000/?tab=Contact" => {
+            "https://about.calum.sh/?tab=Contact" | "http://localhost:3000/?tab=Contact" => {
                 Ok(ProfileUrl::Contact)
             }
             _ => Err(de::Error::unknown_variant(
                 value,
                 &[
-                    "https://about.calum.run/?tab=About",
-                    "https://about.calum.run/?tab=Work",
-                    "https://about.calum.run/?tab=Projects",
-                    "https://about.calum.run/?tab=Contact",
+                    "https://about.calum.sh/?tab=About",
+                    "https://about.calum.sh/?tab=Work",
+                    "https://about.calum.sh/?tab=Projects",
+                    "https://about.calum.sh/?tab=Contact",
                     "http://localhost:3000/?tab=About",
                     "http://localhost:3000/?tab=Work",
                     "http://localhost:3000/?tab=Projects",

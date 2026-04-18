@@ -1,6 +1,6 @@
 # AI Agent API Server
 
-A RESTful API server built in Rust that provides AI-powered insights about my [portfolio website](https://about.calum.run) and its underlying Kubernetes infrastructure. 
+A RESTful API server built in Rust that provides AI-powered insights about my [portfolio website](https://about.calum.sh) and its underlying Kubernetes infrastructure. 
 
 ## Features
 
