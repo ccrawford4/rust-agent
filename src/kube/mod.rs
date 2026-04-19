@@ -62,7 +62,9 @@ impl KubeAgent {
                 .build()
                 .unwrap()
         } else {
-            warn!("No CA certificate provided, accepting self-signed certificates (development only)");
+            warn!(
+                "No CA certificate provided, accepting self-signed certificates (development only)"
+            );
             reqwest::Client::builder()
                 .default_headers(headers)
                 .danger_accept_invalid_certs(true)

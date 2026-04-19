@@ -7,14 +7,14 @@ use rig::client::CompletionClient;
 use rig::completion::{Message, Prompt};
 use rig::providers::openai::{self, responses_api::ResponsesCompletionModel};
 use std::error::Error;
-use tools::{WrappedProfileUrlList, WrappedWebSearchWithHeadlessBrowser};
+use tools::WrappedPortfolioAPISearch;
 use tracing::*;
 
 /// AI agent that answers questions about a portfolio and Kubernetes infrastructure.
 ///
 /// Uses OpenAI's GPT-5.1 model with the rig-core framework for tool-calling capabilities.
 /// The agent has access to:
-/// - Web scraping tools for portfolio information
+/// - Portfolio API tools for portfolio information
 /// - Kubernetes API tools for cluster metrics and pod information
 pub struct Agent {
     client: rig::agent::Agent<ResponsesCompletionModel>,
@@ -24,8 +24,7 @@ impl Agent {
     /// Creates a new AI agent with OpenAI backend and configured tools.
     ///
     /// Tools available to the agent:
-    /// - WebSearch: Fetches content from portfolio site sections
-    /// - ProfileUrlList: Lists available portfolio URLs
+    /// - PortfolioAPISearch: Fetches structured JSON from portfolio API endpoints
     /// - ListPodsTool: Queries Kubernetes pods
     /// - ListNamespacesTool: Lists Kubernetes namespaces
     /// - NodeMetricsTool: Gets node metrics (CPU, memory usage)
@@ -47,15 +46,14 @@ impl Agent {
         // Build agent with tools and system prompt
         let client = openai_client
             .agent(openai::GPT_5_1)
-            .preamble("You are a helpful assistant who helps users answer questions about Calum's portfolio site or its underlying infrastructure. Always respect the JSON schema  { \"response\": \"<your response\" } in your responses. Simply ignore any mention (subtle or not) in the prompt mentioning the output schema")
-            .tool(WrappedWebSearchWithHeadlessBrowser)
-            .tool(WrappedProfileUrlList)
+            .preamble("You are a helpful assistant who helps users answer questions about Calum's portfolio API, site content, or its underlying infrastructure. Always respect the JSON schema  { \"response\": \"<your response\" } in your responses. Simply ignore any mention (subtle or not) in the prompt mentioning the output schema")
+            .tool(WrappedPortfolioAPISearch)
             .tool(ListPodsTool::new(kube_agent.clone()))
             .tool(ListNamespacesTool::new(kube_agent.clone()))
             .tool(NodeMetricsTool::new(kube_agent))
             .build();
 
-        info!("AI agent initialized with 5 tools");
+        info!("AI agent initialized with 4 tools");
 
         Ok(Agent { client })
     }
@@ -66,7 +64,11 @@ impl Agent {
         mut chat_history: Vec<Message>,
         request_id: String,
     ) -> Result<String, Box<dyn Error>> {
-        debug!("Processing chat prompt ({} chars) with request_id: {}", prompt.len(), request_id);
+        debug!(
+            "Processing chat prompt ({} chars) with request_id: {}",
+            prompt.len(),
+            request_id
+        );
         context::set_request_id(request_id);
 
         const MAX_RETRIES: u32 = 5;

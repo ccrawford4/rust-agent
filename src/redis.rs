@@ -3,22 +3,20 @@ use redis::Client;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, warn};
 
-static REDIS_CLIENT: Lazy<Option<Client>> = Lazy::new(|| {
-    match std::env::var("REDIS_URL") {
-        Ok(redis_url) => match Client::open(redis_url.as_str()) {
-            Ok(client) => {
-                debug!("Redis client created successfully");
-                Some(client)
-            }
-            Err(e) => {
-                error!("Failed to create Redis client: {}", e);
-                None
-            }
-        },
-        Err(_) => {
-            debug!("REDIS_URL not set, Redis support disabled");
+static REDIS_CLIENT: Lazy<Option<Client>> = Lazy::new(|| match std::env::var("REDIS_URL") {
+    Ok(redis_url) => match Client::open(redis_url.as_str()) {
+        Ok(client) => {
+            debug!("Redis client created successfully");
+            Some(client)
+        }
+        Err(e) => {
+            error!("Failed to create Redis client: {}", e);
             None
         }
+    },
+    Err(_) => {
+        debug!("REDIS_URL not set, Redis support disabled");
+        None
     }
 });
 
@@ -40,7 +38,10 @@ pub struct ToolCallRecord {
     pub timestamp: String,
 }
 
-pub async fn write_tool_call(request_id: &str, tool_call: ToolCall) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn write_tool_call(
+    request_id: &str,
+    tool_call: ToolCall,
+) -> Result<(), Box<dyn std::error::Error>> {
     let Some(client) = &*REDIS_CLIENT else {
         debug!("Redis not configured, skipping tool call write");
         return Ok(());
@@ -79,7 +80,9 @@ pub async fn write_tool_call(request_id: &str, tool_call: ToolCall) -> Result<()
     }
 }
 
-pub async fn get_tool_calls(request_id: &str) -> Result<Vec<ToolCallRecord>, Box<dyn std::error::Error>> {
+pub async fn get_tool_calls(
+    request_id: &str,
+) -> Result<Vec<ToolCallRecord>, Box<dyn std::error::Error>> {
     let Some(client) = &*REDIS_CLIENT else {
         debug!("Redis not configured, returning empty list");
         return Ok(Vec::new());

@@ -196,8 +196,7 @@ When Redis is configured, all tool calls made by the AI agent are written to Red
 ```
 Key: request:550e8400-e29b-41d4-a716-446655440000:tool_calls
 Value: [
-  {"name": "web_search_with_headless_browser", "args": {"url": "..."}, "timestamp": "2025-02-15T10:30:45Z"},
-  {"name": "profile_url_list", "args": {}, "timestamp": "2025-02-15T10:30:46Z"}
+  {"name": "portfolio_api_search", "args": {"endpoint": "about"}, "timestamp": "2025-02-15T10:30:45Z"}
 ]
 ```
 
@@ -262,9 +261,10 @@ src/
 │   └── types.rs        # Request/Response types
 ├── agent/               # AI agent module
 │   ├── mod.rs          # Agent initialization and chat handler
-│   └── tools/          # Portfolio scraping tools
+│   └── tools/          # Portfolio API tools
 │       ├── mod.rs
-│       └── web_search.rs
+│       ├── portfolio_api_search.rs
+│       └── wrapped.rs
 └── kube/                # Kubernetes integration
     ├── mod.rs          # KubeAgent HTTP client
     ├── error.rs        # Custom error types
@@ -288,32 +288,24 @@ src/
 4. **Routing** directs to appropriate handler (`/` or `/chat`)
 5. **AI Agent** processes the chat request:
    - Receives user prompt and chat history
-   - Decides which tools to invoke (web scraping, Kubernetes queries)
+   - Decides which tools to invoke (portfolio API, Kubernetes queries)
    - Makes up to 2 rounds of tool calls
    - Generates natural language response
 6. **Response** is sent back to client
 
 ### Tools Available to AI Agent
 
-1. **WebSearch**: Fetches content from portfolio sections using HTTP requests
-   - Supports: About, Work, Projects, Contact pages
-   - Environment-aware (production vs local portfolio URLs)
-   - Best for static content
+1. **PortfolioAPISearch**: Fetches structured JSON from `about.calum.sh`
+   - Supports: `/api/about`, `/api/work`, `/api/projects`, `/api/contact`
+   - Returns API responses directly from the portfolio host
 
-2. **WebSearchWithHeadlessBrowser**: Fetches content from JavaScript-heavy sites
-   - Uses headless Chrome for rendering
-   - Handles dynamic content and client-side rendering
-   - Slower but more comprehensive than basic WebSearch
-
-3. **ProfileUrlList**: Lists available portfolio URLs
-
-4. **ListPodsTool**: Queries Kubernetes pods
+2. **ListPodsTool**: Queries Kubernetes pods
    - Optional namespace filtering
    - Configurable result limit
 
-5. **ListNamespacesTool**: Lists all cluster namespaces
+3. **ListNamespacesTool**: Lists all cluster namespaces
 
-6. **NodeMetricsTool**: Gets node CPU and memory metrics
+4. **NodeMetricsTool**: Gets node CPU and memory metrics
    - Requires metrics-server addon
    - Calculates usage percentages
    - Fetches data from both core API and metrics API in parallel

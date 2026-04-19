@@ -175,7 +175,10 @@ impl Server {
                             chat_history = converted_history;
                         }
 
-                        let response = self.agent.chat(chat_req.prompt, chat_history, chat_req.request_id).await;
+                        let response = self
+                            .agent
+                            .chat(chat_req.prompt, chat_history, chat_req.request_id)
+                            .await;
                         match response {
                             Ok(resp) => {
                                 info!("Generated response ({} chars)", resp.len());
