@@ -11,7 +11,7 @@ use std::time::Duration;
 use tracing::*;
 
 /// Valid URLs for the portfolio site sections.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum ProfileUrl {
     About,
     Work,
@@ -20,12 +20,7 @@ pub enum ProfileUrl {
 }
 
 fn get_portfolio_host() -> String {
-    let env = Environment::new();
-    if env.production_mode {
-        "https://about.calum.sh".to_string()
-    } else {
-        "http://localhost:3000".to_string()
-    }
+    return "https://about.calum.sh".to_string();
 }
 
 impl ProfileUrl {
@@ -91,7 +86,7 @@ impl<'de> Deserialize<'de> for ProfileUrl {
 }
 
 /// Arguments for the WebSearch tool
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct WebSearchArgs {
     url: ProfileUrl,
 }
@@ -175,7 +170,7 @@ impl Tool for WebSearch {
 pub struct ProfileUrlList;
 
 /// Arguments for the ProfileUrlList tool (no arguments required)
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ProfileUrlListArgs {}
 
 impl Tool for ProfileUrlList {

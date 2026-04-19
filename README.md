@@ -13,6 +13,7 @@ A RESTful API server built in Rust that provides AI-powered insights about my [p
 
 - **Rust** (1.70+): Install from [rustup.rs](https://rustup.rs/)
 - **OpenAI API Key**: Get one from [OpenAI](https://platform.openai.com/)
+- **Redis** (optional): For storing tool call metadata. Install from [redis.io](https://redis.io/)
 - **Kubernetes Cluster** (optional): Required for infrastructure monitoring features
 
 ## Quick Start
@@ -40,6 +41,7 @@ A RESTful API server built in Rust that provides AI-powered insights about my [p
    PRODUCTION_MODE=false
    KUBE_API_SERVER=https://localhost:6443
    KUBE_TOKEN=your_kubernetes_token_here
+   REDIS_URL=redis://127.0.0.1:6379
    RUST_LOG=info
    ```
 
@@ -58,14 +60,19 @@ A RESTful API server built in Rust that provides AI-powered insights about my [p
    # Chat request (basic)
    curl -X POST http://127.0.0.1:8080/chat \
      -H "Content-Type: application/json" \
-     -H "X-API-Key: 20W6y75LJKvVfh6BKkVTD2/+7WZyRNYSXVsP1NefJrw=" \
-     -d '{"prompt": "What is on Calum'\''s About page?", "chat_history": []}'
+     -H "X-API-Key: your_secure_api_key_for_authentication" \
+     -d '{
+       "request_id": "550e8400-e29b-41d4-a716-446655440000",
+       "prompt": "What is on Calum'\''s About page?",
+       "chat_history": []
+     }'
 
    # Chat request (with conversation history)
    curl -X POST http://127.0.0.1:8080/chat \
      -H "Content-Type: application/json" \
      -H "X-API-Key: your_secure_api_key_for_authentication" \
      -d '{
+       "request_id": "550e8400-e29b-41d4-a716-446655440001",
        "prompt": "What technologies are mentioned?",
        "chat_history": [
          {"role": "user", "content": "Tell me about Calum'\''s projects"},
@@ -142,6 +149,7 @@ Main chat endpoint for AI interactions.
 **Request Body**
 ```json
 {
+  "request_id": "550e8400-e29b-41d4-a716-446655440000",
   "prompt": "Your question here",
   "chat_history": [
     {
@@ -157,6 +165,7 @@ Main chat endpoint for AI interactions.
 ```
 
 **Fields**
+- `request_id` (string, required): Unique identifier for this request. Used for tracking tool calls in Redis. Typically a UUID (e.g., `550e8400-e29b-41d4-a716-446655440000`).
 - `prompt` (string, required): The user's question or prompt
 - `chat_history` (array, optional): Previous conversation messages for context. Each message must have `role` ("user" or "assistant") and `content` (string) fields.
 
@@ -167,11 +176,40 @@ String response from the AI agent
 
 **Status Codes**
 - `200 OK`: Successful response
-- `400 Bad Request`: Invalid JSON or malformed request
+- `400 Bad Request`: Invalid JSON or malformed request (e.g., missing/empty `request_id`)
 - `401 Unauthorized`: Missing API key
 - `403 Forbidden`: Invalid API key
 - `405 Method Not Allowed`: Wrong HTTP method
 - `500 Internal Server Error`: AI agent failure
+
+## Tool Call Tracking (Redis)
+
+When Redis is configured, all tool calls made by the AI agent are written to Redis in real-time. This allows you to monitor which tools are being invoked and with what arguments for each request.
+
+**How it works:**
+1. Each API request includes a `request_id` in the body
+2. As the agent executes, it writes tool calls to Redis with the key format: `request:{request_id}:tool_calls`
+3. Each tool call is stored as a JSON record containing the tool name, arguments, and timestamp
+4. Tool calls are stored as a Redis list (RPUSH) for efficient append and retrieval
+
+**Example Redis data structure:**
+```
+Key: request:550e8400-e29b-41d4-a716-446655440000:tool_calls
+Value: [
+  {"name": "web_search_with_headless_browser", "args": {"url": "..."}, "timestamp": "2025-02-15T10:30:45Z"},
+  {"name": "profile_url_list", "args": {}, "timestamp": "2025-02-15T10:30:46Z"}
+]
+```
+
+**Retrieving tool calls:**
+```bash
+# Get all tool calls for a request
+redis-cli LRANGE "request:550e8400-e29b-41d4-a716-446655440000:tool_calls" 0 -1
+```
+
+**Configuration:**
+- Set `REDIS_URL` environment variable (defaults to `redis://127.0.0.1:6379`)
+- If Redis is unavailable, tool calls are gracefully skipped (no impact on agent operation)
 
 ## Configuration
 
@@ -184,6 +222,7 @@ String response from the AI agent
 | `PRODUCTION_MODE` | No | `false` | Enables production mode (uses mounted K8s credentials) |
 | `KUBE_API_SERVER` | No | `https://localhost:6443` | Kubernetes API server URL |
 | `KUBE_TOKEN` | No (dev only) | - | Kubernetes bearer token (development mode only) |
+| `REDIS_URL` | No | `redis://127.0.0.1:6379` | Redis connection URL for tool call tracking |
 | `RUST_LOG` | No | `info` | Log level (`error`, `warn`, `info`, `debug`, `trace`) |
 
 ### Logging

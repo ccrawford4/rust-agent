@@ -7,8 +7,10 @@ use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
 mod agent;
+mod context;
 mod environment;
 mod kube;
+mod redis;
 mod server;
 
 /// Main application entry point.
@@ -59,16 +61,7 @@ async fn main() {
         warn!("Failed to connect to Kubernetes cluster. AI agent will have limited functionality.");
     }
 
-    // In production environments, k8s treats pods as first-class-citizens, so we bind it to the
-    // "host" interface to allow external access. On local/dev environments, we bind to localhost
-    // only.
-    let host = if env.production_mode {
-        "0.0.0.0:8080".to_string()
-    } else {
-        "127.0.0.1:8080".to_string()
-    };
-
-    let server = Server::new(agent, host.to_string(), env.chat_api_key);
+    let server = Server::new(agent, "0.0.0.0:8080".to_string(), env.chat_api_key);
 
     if let Err(e) = server.listen().await {
         error!("Failed to start server: {}", e);

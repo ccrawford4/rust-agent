@@ -140,9 +140,19 @@ impl Server {
                 match serde_json::from_str::<ChatRequest>(&body_str) {
                     Ok(chat_req) => {
                         info!(
-                            "Processing chat request ({} chars)",
-                            chat_req.prompt.len()
+                            "Processing chat request ({} chars) with request_id: {}",
+                            chat_req.prompt.len(),
+                            chat_req.request_id
                         );
+
+                        if chat_req.request_id.is_empty() {
+                            warn!("Chat request has empty request_id");
+                            return Self::send_response(
+                                stream,
+                                "400 Bad Request",
+                                "request_id cannot be empty",
+                            );
+                        }
 
                         // Convert chat history to internal message format
                         let mut chat_history: Vec<Message> = Vec::new();
@@ -165,7 +175,7 @@ impl Server {
                             chat_history = converted_history;
                         }
 
-                        let response = self.agent.chat(chat_req.prompt, chat_history).await;
+                        let response = self.agent.chat(chat_req.prompt, chat_history, chat_req.request_id).await;
                         match response {
                             Ok(resp) => {
                                 info!("Generated response ({} chars)", resp.len());

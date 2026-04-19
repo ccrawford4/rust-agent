@@ -1,3 +1,4 @@
 pub mod web_search;
+pub mod wrapped;
 
-pub use web_search::{ProfileUrlList, WebSearch, WebSearchWithHeadlessBrowser};
+pub use wrapped::{WrappedProfileUrlList, WrappedWebSearchWithHeadlessBrowser};

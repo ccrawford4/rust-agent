@@ -106,6 +106,8 @@ impl Request {
 /// Request payload for the /chat endpoint
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ChatRequest {
+    /// Unique request identifier for tracking tool calls in Redis
+    pub request_id: String,
     /// The user's prompt/question
     pub prompt: String,
     /// Optional conversation history for context

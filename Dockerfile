@@ -10,7 +10,7 @@ FROM chef AS planner
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
-# Build and cache depndencies
+# Build and cache dependencies
 FROM chef AS builder
 ARG TARGETARCH
 RUN case "$TARGETARCH" in \
@@ -21,17 +21,35 @@ RUN case "$TARGETARCH" in \
     rustup target add $(cat /rust_target)
 
 COPY --from=planner /usr/src/app/recipe.json recipe.json
-RUN cargo chef cook --release --target $(cat /rust_target) --recipe-path recipe.json
+RUN cargo chef cook --release --target $(cat /rust_target) --recipe-path recipe.json -j 2
 
 # Build the source code
 COPY . .
-RUN cargo build --release --target $(cat /rust_target) && \
+RUN cargo build --release --target $(cat /rust_target) -j 2 && \
     cp target/$(cat /rust_target)/release/rust-agent /usr/local/bin/rust-agent
 
 # Use a slimmer image and install runtime dependencies
 FROM rust:1.92-slim
-RUN apt-get update && apt-get install -y libssl3 ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y \
+    libssl3 \
+    ca-certificates \
+    bash \
+    chromium \
+    chromium-driver \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy the binary and execute
+# Setup chrome driver env vars for headless browser
+ENV PATH="$PATH:/usr/bin" \
+    CHROME_BIN=/usr/bin/chromium \
+    CHROME_PATH=/usr/lib/chromium/
+
+# Create non-root user with home directory
+RUN useradd -m -s /bin/bash rustagent
+
+# Copy and set permissions for rust-agent binary
 COPY --from=builder /usr/local/bin/rust-agent /usr/local/bin/rust-agent
+RUN chmod +x /usr/local/bin/rust-agent && \
+    chown rustagent:rustagent /usr/local/bin/rust-agent
+
+USER rustagent
 CMD ["rust-agent"]

@@ -24,6 +24,9 @@ pub struct Environment {
 
     /// API key for authenticating requests to this server
     pub chat_api_key: String,
+
+    /// Redis connection URL for storing tool calls
+    pub redis_url: String,
 }
 
 impl Environment {
@@ -97,7 +100,9 @@ impl Environment {
                 }
             }
         } else {
-            debug!("Development mode: loading Kubernetes token from KUBE_TOKEN environment variable");
+            debug!(
+                "Development mode: loading Kubernetes token from KUBE_TOKEN environment variable"
+            );
             match std::env::var("KUBE_TOKEN") {
                 Ok(token) => {
                     debug!("KUBE_TOKEN loaded from environment");
@@ -111,7 +116,9 @@ impl Environment {
         };
 
         let kube_certificate = if production_mode {
-            debug!("Production mode: loading Kubernetes CA certificate from mounted service account");
+            debug!(
+                "Production mode: loading Kubernetes CA certificate from mounted service account"
+            );
             match std::fs::read("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt") {
                 Ok(cert_bytes) => match Certificate::from_pem(&cert_bytes) {
                     Ok(cert) => {
@@ -137,6 +144,17 @@ impl Environment {
             None
         };
 
+        let redis_url = match std::env::var("REDIS_URL") {
+            Ok(url) => {
+                debug!("REDIS_URL loaded from environment");
+                url
+            }
+            Err(_) => {
+                debug!("REDIS_URL not set, using default localhost URL");
+                "redis://127.0.0.1:6379".to_string()
+            }
+        };
+
         Environment {
             openai_api_key,
             production_mode,
@@ -144,6 +162,7 @@ impl Environment {
             kube_api_server,
             kube_token,
             kube_certificate,
+            redis_url,
         }
     }
 }

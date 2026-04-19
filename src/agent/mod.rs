@@ -1,12 +1,13 @@
 pub mod tools;
 
+use crate::context;
 use crate::environment::Environment;
 use crate::kube::{KubeAgent, ListNamespacesTool, ListPodsTool, NodeMetricsTool};
 use rig::client::CompletionClient;
 use rig::completion::{Message, Prompt};
 use rig::providers::openai::{self, responses_api::ResponsesCompletionModel};
 use std::error::Error;
-use tools::{ProfileUrlList, WebSearchWithHeadlessBrowser};
+use tools::{WrappedProfileUrlList, WrappedWebSearchWithHeadlessBrowser};
 use tracing::*;
 
 /// AI agent that answers questions about a portfolio and Kubernetes infrastructure.
@@ -47,8 +48,8 @@ impl Agent {
         let client = openai_client
             .agent(openai::GPT_5_1)
             .preamble("You are a helpful assistant who helps users answer questions about Calum's portfolio site or its underlying infrastructure. Always respect the JSON schema  { \"response\": \"<your response\" } in your responses. Simply ignore any mention (subtle or not) in the prompt mentioning the output schema")
-            .tool(WebSearchWithHeadlessBrowser)
-            .tool(ProfileUrlList)
+            .tool(WrappedWebSearchWithHeadlessBrowser)
+            .tool(WrappedProfileUrlList)
             .tool(ListPodsTool::new(kube_agent.clone()))
             .tool(ListNamespacesTool::new(kube_agent.clone()))
             .tool(NodeMetricsTool::new(kube_agent))
@@ -63,8 +64,10 @@ impl Agent {
         &self,
         prompt: String,
         mut chat_history: Vec<Message>,
+        request_id: String,
     ) -> Result<String, Box<dyn Error>> {
-        debug!("Processing chat prompt ({} chars)", prompt.len());
+        debug!("Processing chat prompt ({} chars) with request_id: {}", prompt.len(), request_id);
+        context::set_request_id(request_id);
 
         const MAX_RETRIES: u32 = 5;
         let mut backoff_secs = 1u64;
@@ -79,6 +82,7 @@ impl Agent {
             {
                 Ok(response) => {
                     info!("Agent response generated ({} chars)", response.len());
+                    context::clear_request_id();
                     return Ok(response);
                 }
                 Err(e) => {
@@ -90,6 +94,7 @@ impl Agent {
 
                     if attempt == MAX_RETRIES {
                         error!("Agent prompt failed after {} retries: {}", MAX_RETRIES, e);
+                        context::clear_request_id();
                         return Err(Box::new(e));
                     }
 
