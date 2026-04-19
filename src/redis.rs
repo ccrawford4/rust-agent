@@ -1,7 +1,7 @@
 use once_cell::sync::Lazy;
 use redis::Client;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error, warn};
+use tracing::{debug, error};
 
 static REDIS_CLIENT: Lazy<Option<Client>> = Lazy::new(|| match std::env::var("REDIS_URL") {
     Ok(redis_url) => match Client::open(redis_url.as_str()) {
@@ -78,40 +78,4 @@ pub async fn write_tool_call(
             Err(Box::new(e))
         }
     }
-}
-
-pub async fn get_tool_calls(
-    request_id: &str,
-) -> Result<Vec<ToolCallRecord>, Box<dyn std::error::Error>> {
-    let Some(client) = &*REDIS_CLIENT else {
-        debug!("Redis not configured, returning empty list");
-        return Ok(Vec::new());
-    };
-
-    let mut conn = match client.get_multiplexed_async_connection().await {
-        Ok(c) => c,
-        Err(e) => {
-            error!("Failed to get Redis connection: {}", e);
-            return Err(Box::new(e));
-        }
-    };
-
-    let json_strings: Vec<String> = redis::cmd("LRANGE")
-        .arg(format!("request:{}:tool_calls", request_id))
-        .arg(0)
-        .arg(-1)
-        .query_async(&mut conn)
-        .await?;
-
-    let mut records = Vec::new();
-    for json_str in json_strings {
-        match serde_json::from_str::<ToolCallRecord>(&json_str) {
-            Ok(record) => records.push(record),
-            Err(e) => {
-                warn!("Failed to deserialize tool call record: {}", e);
-            }
-        }
-    }
-
-    Ok(records)
 }

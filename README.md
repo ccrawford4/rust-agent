@@ -184,13 +184,13 @@ String response from the AI agent
 
 ## Tool Call Tracking (Redis)
 
-When Redis is configured, all tool calls made by the AI agent are written to Redis in real-time. This allows you to monitor which tools are being invoked and with what arguments for each request.
+When Redis is configured, wrapped tool calls made by the AI agent are written to Redis in real-time. This allows you to monitor which wrapped tools are being invoked and with what arguments for each request.
 
 **How it works:**
 1. Each API request includes a `request_id` in the body
-2. As the agent executes, it writes tool calls to Redis with the key format: `request:{request_id}:tool_calls`
+2. As the agent executes, wrapped tools write tool calls to Redis with the key format: `request:{request_id}:tool_calls`
 3. Each tool call is stored as a JSON record containing the tool name, arguments, and timestamp
-4. Tool calls are stored as a Redis list (RPUSH) for efficient append and retrieval
+4. Tool calls are stored as a Redis list via `RPUSH`, where each list item is a JSON string containing `name`, `args`, and `timestamp`
 
 **Example Redis data structure:**
 ```
@@ -209,6 +209,7 @@ redis-cli LRANGE "request:550e8400-e29b-41d4-a716-446655440000:tool_calls" 0 -1
 **Configuration:**
 - Set `REDIS_URL` environment variable (defaults to `redis://127.0.0.1:6379`)
 - If Redis is unavailable, tool calls are gracefully skipped (no impact on agent operation)
+- At present, `portfolio_api_search` is wrapped and logged; Kubernetes tools are not
 
 ## Configuration
 
