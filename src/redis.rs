@@ -289,11 +289,13 @@ pub async fn read_chat_response(
     let redis_key = format!("chat_response_{}", request_id);
     warn!(
         "Issuing Redis GET for key={} request_id={}",
-        redis_key,
-        request_id
+        redis_key, request_id
     );
 
-    let raw_record: Option<String> = redis::cmd("GET").arg(&redis_key).query_async(&mut conn).await?;
+    let raw_record: Option<String> = redis::cmd("GET")
+        .arg(&redis_key)
+        .query_async(&mut conn)
+        .await?;
     let Some(raw_record) = raw_record else {
         info!(
             "Redis GET returned no async chat response for request_id={}",
@@ -305,8 +307,7 @@ pub async fn read_chat_response(
     let record: ChatResponseRecord = serde_json::from_str(&raw_record)?;
     info!(
         "Redis GET succeeded for async chat response request_id={} status={}",
-        request_id,
-        record.status
+        request_id, record.status
     );
     Ok(Some(record))
 }

@@ -1,5 +1,26 @@
+use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use reqwest::Certificate;
 use tracing::{debug, info, warn};
+
+const REDIS_PASSWORD_ENCODE_SET: &AsciiSet = &CONTROLS
+    .add(b' ')
+    .add(b'"')
+    .add(b'#')
+    .add(b'%')
+    .add(b'/')
+    .add(b':')
+    .add(b'<')
+    .add(b'>')
+    .add(b'?')
+    .add(b'@')
+    .add(b'[')
+    .add(b'\\')
+    .add(b']')
+    .add(b'^')
+    .add(b'`')
+    .add(b'{')
+    .add(b'|')
+    .add(b'}');
 
 /// Application configuration loaded from environment variables.
 ///
@@ -144,16 +165,7 @@ impl Environment {
             None
         };
 
-        let redis_url = match std::env::var("REDIS_URL") {
-            Ok(url) => {
-                debug!("REDIS_URL loaded from environment");
-                url
-            }
-            Err(_) => {
-                debug!("REDIS_URL not set, using default localhost URL");
-                "redis://127.0.0.1:6379".to_string()
-            }
-        };
+        let redis_url = Self::redis_url_from_environment();
 
         Environment {
             openai_api_key,
@@ -164,5 +176,87 @@ impl Environment {
             kube_certificate,
             redis_url,
         }
+    }
+
+    fn redis_url_from_environment() -> String {
+        let redis_host = std::env::var("REDIS_HOST").ok();
+        let redis_port = std::env::var("REDIS_PORT").ok();
+        let redis_password = std::env::var("REDIS_PASSWORD").ok();
+
+        if let (Some(host), Some(port), Some(password)) = (redis_host, redis_port, redis_password) {
+            debug!("Building Redis URL from REDIS_HOST, REDIS_PORT, and REDIS_PASSWORD");
+            let encoded_password =
+                utf8_percent_encode(&password, REDIS_PASSWORD_ENCODE_SET).to_string();
+
+            return format!("redis://:{}@{}:{}", encoded_password, host, port);
+        }
+
+        match std::env::var("REDIS_URL") {
+            Ok(url) => {
+                debug!("REDIS_URL loaded from environment");
+                url
+            }
+            Err(_) => {
+                debug!("Redis env vars not set, using default localhost URL");
+                "redis://127.0.0.1:6379".to_string()
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Environment;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn clear_redis_env() {
+        for key in ["REDIS_HOST", "REDIS_PORT", "REDIS_PASSWORD", "REDIS_URL"] {
+            std::env::remove_var(key);
+        }
+    }
+
+    #[test]
+    fn builds_redis_url_from_split_env_vars() {
+        let _guard = env_lock().lock().unwrap();
+        clear_redis_env();
+
+        std::env::set_var("REDIS_HOST", "ai-agent-api-redis");
+        std::env::set_var("REDIS_PORT", "6379");
+        std::env::set_var("REDIS_PASSWORD", "pa:ss@word");
+
+        let redis_url = Environment::redis_url_from_environment();
+
+        assert_eq!(redis_url, "redis://:pa%3Ass%40word@ai-agent-api-redis:6379");
+
+        clear_redis_env();
+    }
+
+    #[test]
+    fn falls_back_to_redis_url_when_split_vars_are_missing() {
+        let _guard = env_lock().lock().unwrap();
+        clear_redis_env();
+
+        std::env::set_var("REDIS_URL", "redis://127.0.0.1:6379");
+
+        let redis_url = Environment::redis_url_from_environment();
+
+        assert_eq!(redis_url, "redis://127.0.0.1:6379");
+
+        clear_redis_env();
+    }
+
+    #[test]
+    fn defaults_to_localhost_when_no_redis_env_vars_are_set() {
+        let _guard = env_lock().lock().unwrap();
+        clear_redis_env();
+
+        let redis_url = Environment::redis_url_from_environment();
+
+        assert_eq!(redis_url, "redis://127.0.0.1:6379");
     }
 }

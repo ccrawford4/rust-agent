@@ -229,12 +229,11 @@ impl Server {
                                             request_id,
                                             resp.len()
                                         );
-                                        if let Err(e) =
-                                            crate::redis::write_completed_chat_response(
-                                                &request_id,
-                                                &resp,
-                                            )
-                                            .await
+                                        if let Err(e) = crate::redis::write_completed_chat_response(
+                                            &request_id,
+                                            &resp,
+                                        )
+                                        .await
                                         {
                                             error!(
                                                 "Failed to write async chat response to Redis for request_id={}: {}",

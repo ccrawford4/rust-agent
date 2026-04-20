@@ -42,8 +42,13 @@ A RESTful API server built in Rust that provides AI-powered insights about my [p
    KUBE_API_SERVER=https://localhost:6443
    KUBE_TOKEN=your_kubernetes_token_here
 
-   # Required operationally unless you are running Redis locally on the default address
-   REDIS_URL=redis://127.0.0.1:6379
+   # Optional Redis config
+   REDIS_HOST=127.0.0.1
+   REDIS_PORT=6379
+   # REDIS_PASSWORD=your_redis_password_here
+
+   # Backward-compatible alternative
+   # REDIS_URL=redis://127.0.0.1:6379
 
    # Optional
    RUST_LOG=info
@@ -129,8 +134,15 @@ The server is designed to run inside a Kubernetes cluster as a pod with appropri
            key: chat-api-key
      - name: KUBE_API_SERVER
        value: "https://kubernetes.default.svc"
-     - name: REDIS_URL
-       value: "redis://your-redis-service:6379"
+     - name: REDIS_HOST
+       value: "ai-agent-api-redis"
+     - name: REDIS_PORT
+       value: "6379"
+     - name: REDIS_PASSWORD
+       valueFrom:
+         secretKeyRef:
+           name: ai-agent-api-secrets
+           key: redis-password
    ```
 
    The application will not start unless the configured Redis instance is reachable at boot.
@@ -310,7 +322,8 @@ curl "http://127.0.0.1:8080/api/tools?response_id=550e8400-e29b-41d4-a716-446655
 ```
 
 **Configuration:**
-- Set `REDIS_URL` to your Redis instance. If unset, the app defaults to `redis://127.0.0.1:6379`
+- Set `REDIS_HOST`, `REDIS_PORT`, and `REDIS_PASSWORD` to have the app build the Redis URL automatically
+- `REDIS_URL` remains supported as a backward-compatible fallback
 - The server validates Redis connectivity during startup with a connection check and `PING`
 - If Redis is unavailable or authentication fails, the process exits and the server does not start
 - At present, `web_search` is wrapped and logged; Kubernetes tools are not
@@ -326,7 +339,10 @@ curl "http://127.0.0.1:8080/api/tools?response_id=550e8400-e29b-41d4-a716-446655
 | `PRODUCTION_MODE` | No | `false` | Enables production mode (uses mounted K8s credentials) |
 | `KUBE_API_SERVER` | No | `https://localhost:6443` | Kubernetes API server URL |
 | `KUBE_TOKEN` | No (dev only) | - | Kubernetes bearer token (development mode only) |
-| `REDIS_URL` | No | `redis://127.0.0.1:6379` | Redis connection URL. Startup fails if this target is unreachable |
+| `REDIS_HOST` | No | - | Redis host used to build the connection URL when set with `REDIS_PORT` and `REDIS_PASSWORD` |
+| `REDIS_PORT` | No | - | Redis port used to build the connection URL when set with `REDIS_HOST` and `REDIS_PASSWORD` |
+| `REDIS_PASSWORD` | No | - | Redis password used to build the connection URL when set with `REDIS_HOST` and `REDIS_PORT` |
+| `REDIS_URL` | No | `redis://127.0.0.1:6379` | Backward-compatible Redis connection URL fallback |
 | `RUST_LOG` | No | `info` | Log level (`error`, `warn`, `info`, `debug`, `trace`) |
 
 ### Logging

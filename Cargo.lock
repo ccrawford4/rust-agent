@@ -1175,6 +1175,7 @@ dependencies = [
  "chrono",
  "dotenv",
  "once_cell",
+ "percent-encoding",
  "redis",
  "reqwest",
  "rig-core",
