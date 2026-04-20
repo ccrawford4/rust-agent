@@ -3,6 +3,7 @@ use crate::environment::Environment;
 use crate::kube::{KubeAgent, ListPodsTool};
 use crate::server::Server;
 use dotenv::dotenv;
+use std::sync::Arc;
 use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
@@ -68,7 +69,11 @@ async fn main() {
         warn!("Failed to connect to Kubernetes cluster. AI agent will have limited functionality.");
     }
 
-    let server = Server::new(agent, "0.0.0.0:8080".to_string(), env.chat_api_key);
+    let server = Server::new(
+        Arc::new(agent),
+        "0.0.0.0:8080".to_string(),
+        env.chat_api_key,
+    );
 
     if let Err(e) = server.listen().await {
         error!("Failed to start server: {}", e);

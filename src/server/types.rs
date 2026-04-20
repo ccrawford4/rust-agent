@@ -24,6 +24,8 @@ impl Method {
 pub enum Path {
     /// POST /chat - Main chat endpoint for AI interactions
     Chat,
+    /// GET /chat/response - Poll for an async chat response by request id
+    ChatResponse,
     /// GET /api/tools - Fetch logged tool calls for a response/request id
     Tools,
     /// GET / - Health check endpoint
@@ -36,6 +38,7 @@ impl Path {
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "/chat" => Some(Path::Chat),
+            "/chat/response" => Some(Path::ChatResponse),
             "/api/tools" => Some(Path::Tools),
             "/" => Some(Path::Root),
             "/favicon.ico" => Some(Path::Favicon),

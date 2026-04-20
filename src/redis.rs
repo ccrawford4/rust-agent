@@ -72,6 +72,18 @@ pub struct ToolCallRecord {
     pub timestamp: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ChatResponseRecord {
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<String>,
+    pub timestamp: String,
+}
+
 pub async fn write_tool_call(
     request_id: &str,
     tool_call: ToolCall,
@@ -207,6 +219,136 @@ pub async fn read_tool_calls(
     );
 
     Ok(records)
+}
+
+pub async fn write_pending_chat_response(
+    request_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    write_chat_response_record(
+        request_id,
+        ChatResponseRecord {
+            status: "pending".to_string(),
+            response: None,
+            error: None,
+            details: None,
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        },
+    )
+    .await
+}
+
+pub async fn write_completed_chat_response(
+    request_id: &str,
+    response: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    write_chat_response_record(
+        request_id,
+        ChatResponseRecord {
+            status: "completed".to_string(),
+            response: Some(response.to_string()),
+            error: None,
+            details: None,
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        },
+    )
+    .await
+}
+
+pub async fn write_failed_chat_response(
+    request_id: &str,
+    error_message: &str,
+    details: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    write_chat_response_record(
+        request_id,
+        ChatResponseRecord {
+            status: "failed".to_string(),
+            response: None,
+            error: Some(error_message.to_string()),
+            details: Some(details.to_string()),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        },
+    )
+    .await
+}
+
+pub async fn read_chat_response(
+    request_id: &str,
+) -> Result<Option<ChatResponseRecord>, Box<dyn std::error::Error>> {
+    warn!("read_chat_response invoked for request_id={}", request_id);
+
+    let Some(client) = REDIS_CLIENT.get() else {
+        error!(
+            "Redis client not initialized; cannot read chat response for request_id={}",
+            request_id
+        );
+        return Err("Redis client not initialized".into());
+    };
+
+    let mut conn = client.get_multiplexed_async_connection().await?;
+    let redis_key = format!("chat_response_{}", request_id);
+    warn!(
+        "Issuing Redis GET for key={} request_id={}",
+        redis_key,
+        request_id
+    );
+
+    let raw_record: Option<String> = redis::cmd("GET").arg(&redis_key).query_async(&mut conn).await?;
+    let Some(raw_record) = raw_record else {
+        info!(
+            "Redis GET returned no async chat response for request_id={}",
+            request_id
+        );
+        return Ok(None);
+    };
+
+    let record: ChatResponseRecord = serde_json::from_str(&raw_record)?;
+    info!(
+        "Redis GET succeeded for async chat response request_id={} status={}",
+        request_id,
+        record.status
+    );
+    Ok(Some(record))
+}
+
+async fn write_chat_response_record(
+    request_id: &str,
+    record: ChatResponseRecord,
+) -> Result<(), Box<dyn std::error::Error>> {
+    warn!(
+        "write_chat_response_record invoked for request_id={} status={}",
+        request_id, record.status
+    );
+
+    let Some(client) = REDIS_CLIENT.get() else {
+        error!(
+            "Redis client not initialized; cannot write chat response for request_id={}",
+            request_id
+        );
+        return Err("Redis client not initialized".into());
+    };
+
+    let mut conn = client.get_multiplexed_async_connection().await?;
+    let redis_key = format!("chat_response_{}", request_id);
+    let json_str = serde_json::to_string(&record)?;
+    warn!(
+        "Issuing Redis SET for key={} request_id={} payload_bytes={}",
+        redis_key,
+        request_id,
+        json_str.len()
+    );
+
+    redis::cmd("SET")
+        .arg(&redis_key)
+        .arg(&json_str)
+        .query_async::<_, ()>(&mut conn)
+        .await?;
+
+    info!(
+        "Redis SET succeeded for async chat response request_id={} status={}",
+        request_id, record.status
+    );
+    Ok(())
 }
 
 fn json_type_name(value: &serde_json::Value) -> &'static str {

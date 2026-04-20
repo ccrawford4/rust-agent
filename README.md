@@ -152,6 +152,8 @@ Health check endpoint.
 #### `POST /chat`
 Main chat endpoint for AI interactions.
 
+Add `?async=true` to queue LLM processing in the background and return `200 OK` immediately. The request is marked as pending in Redis under `chat_response_{request_id}`, then overwritten with the completed or failed result when background processing finishes.
+
 **Request Headers**
 - `Content-Type: application/json`
 - `X-API-Key: <your-api-key>`
@@ -184,6 +186,13 @@ Main chat endpoint for AI interactions.
 String response from the AI agent
 ```
 
+When using `POST /chat?async=true`, the HTTP response returns immediately with an empty body. Poll for completion with:
+
+```bash
+curl "http://127.0.0.1:8080/chat/response?request_id=550e8400-e29b-41d4-a716-446655440000" \
+  -H "X-API-Key: your-chat-api-key"
+```
+
 **Status Codes**
 - `200 OK`: Successful response
 - `400 Bad Request`: Invalid JSON or malformed request (e.g., missing/empty `request_id`)
@@ -191,6 +200,47 @@ String response from the AI agent
 - `403 Forbidden`: Invalid API key
 - `405 Method Not Allowed`: Wrong HTTP method
 - `500 Internal Server Error`: AI agent failure
+
+#### `GET /chat/response`
+Polls for the result of an async `POST /chat?async=true` request.
+
+**Query Parameters**
+- `request_id` (string, required): Request identifier originally sent to `POST /chat`
+
+**Response**
+```json
+{
+  "status": "pending",
+  "timestamp": "2026-04-20T01:23:45Z"
+}
+```
+
+```json
+{
+  "status": "completed",
+  "response": "{\"response\":\"Your answer here\"}",
+  "timestamp": "2026-04-20T01:23:52Z"
+}
+```
+
+```json
+{
+  "status": "failed",
+  "error": "Failed to generate response",
+  "details": "provider error details",
+  "timestamp": "2026-04-20T01:23:52Z"
+}
+```
+
+**Status Codes**
+- `200 OK`: Async response completed
+- `202 Accepted`: Async request is still processing
+- `400 Bad Request`: Missing or empty `request_id`
+- `401 Unauthorized`: Missing API key
+- `403 Forbidden`: Invalid API key
+- `404 Not Found`: No async response exists for that `request_id`
+- `405 Method Not Allowed`: Wrong HTTP method
+- `500 Internal Server Error`: Async request failed or Redis read failed
 
 #### `GET /api/tools`
 
