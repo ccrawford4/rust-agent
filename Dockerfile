@@ -33,15 +33,7 @@ FROM rust:1.92-slim
 RUN apt-get update && apt-get install -y \
     libssl3 \
     ca-certificates \
-    bash \
-    chromium \
-    chromium-driver \
     && rm -rf /var/lib/apt/lists/*
-
-# Setup chrome driver env vars for headless browser
-ENV PATH="$PATH:/usr/bin" \
-    CHROME_BIN=/usr/bin/chromium \
-    CHROME_PATH=/usr/lib/chromium/
 
 # Create non-root user with home directory
 RUN useradd -m -s /bin/bash rustagent
