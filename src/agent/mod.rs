@@ -90,10 +90,7 @@ impl PromptHook<ResponsesCompletionModel> for RedisToolLoggingHook {
                 );
                 error!("Failed to write tool call to Redis: {}", e);
             } else {
-                warn!(
-                    "Hook Redis write succeeded for request_id={}",
-                    request_id
-                );
+                warn!("Hook Redis write succeeded for request_id={}", request_id);
                 info!("Tool call written to Redis for request_id {}", request_id);
             }
         }
@@ -185,11 +182,7 @@ impl Agent {
                     return Ok(response);
                 }
                 Err(e) => {
-                    warn!(
-                        "Agent prompt failed on attempt={} error={}",
-                        attempt + 1,
-                        e
-                    );
+                    warn!("Agent prompt failed on attempt={} error={}", attempt + 1, e);
                     let mut source = e.source();
                     while let Some(err) = source {
                         error!("  caused by: {}", err);

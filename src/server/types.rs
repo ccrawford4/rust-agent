@@ -1,5 +1,6 @@
 use rig::completion::Message;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// HTTP methods supported by the server
 #[derive(Debug)]
@@ -23,6 +24,8 @@ impl Method {
 pub enum Path {
     /// POST /chat - Main chat endpoint for AI interactions
     Chat,
+    /// GET /api/tools - Fetch logged tool calls for a response/request id
+    Tools,
     /// GET / - Health check endpoint
     Root,
     /// GET /favicon.ico - Favicon request (returns 404)
@@ -33,6 +36,7 @@ impl Path {
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "/chat" => Some(Path::Chat),
+            "/api/tools" => Some(Path::Tools),
             "/" => Some(Path::Root),
             "/favicon.ico" => Some(Path::Favicon),
             _ => None,
@@ -45,6 +49,7 @@ impl Path {
 pub struct Request {
     pub method: Method,
     pub path: Path,
+    pub query_params: HashMap<String, String>,
     pub api_key: Option<String>,
     pub body: Option<String>,
 }
@@ -64,7 +69,9 @@ impl Request {
         let mut parts = first_line.split_whitespace();
 
         let method = parts.next().and_then(Method::from_str)?;
-        let path = parts.next().and_then(Path::from_str)?;
+        let raw_path = parts.next()?;
+        let (path_str, query_params) = parse_path_and_query(raw_path);
+        let path = Path::from_str(path_str)?;
 
         let mut content_length = 0;
         let mut api_key = None;
@@ -97,10 +104,33 @@ impl Request {
         Some(Request {
             method,
             path,
+            query_params,
             body,
             api_key,
         })
     }
+}
+
+fn parse_path_and_query(raw_path: &str) -> (&str, HashMap<String, String>) {
+    let Some((path, query)) = raw_path.split_once('?') else {
+        return (raw_path, HashMap::new());
+    };
+
+    let mut query_params = HashMap::new();
+    for pair in query.split('&') {
+        if pair.is_empty() {
+            continue;
+        }
+
+        let (key, value) = match pair.split_once('=') {
+            Some((key, value)) => (key, value),
+            None => (pair, ""),
+        };
+
+        query_params.insert(key.to_string(), value.to_string());
+    }
+
+    (path, query_params)
 }
 
 /// Request payload for the /chat endpoint

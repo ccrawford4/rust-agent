@@ -192,6 +192,43 @@ String response from the AI agent
 - `405 Method Not Allowed`: Wrong HTTP method
 - `500 Internal Server Error`: AI agent failure
 
+#### `GET /api/tools`
+
+Returns the Redis-backed tool call log for a given response identifier.
+
+**Query Parameters**
+- `response_id` (string, required): Identifier used to look up the Redis key for tool calls. This currently maps to the same value sent as `request_id` on `POST /chat`.
+
+**Example**
+```bash
+curl "http://127.0.0.1:8080/api/tools?response_id=550e8400-e29b-41d4-a716-446655440000" \
+  -H "X-API-Key: your-chat-api-key"
+```
+
+**Response**
+```json
+{
+  "response_id": "550e8400-e29b-41d4-a716-446655440000",
+  "tools": [
+    {
+      "name": "portfolio_api_search",
+      "args": {
+        "endpoint": "about"
+      },
+      "timestamp": "2025-02-15T10:30:45Z"
+    }
+  ]
+}
+```
+
+**Status Codes**
+- `200 OK`: Successful response
+- `400 Bad Request`: Missing or empty `response_id`
+- `401 Unauthorized`: Missing API key
+- `403 Forbidden`: Invalid API key
+- `405 Method Not Allowed`: Wrong HTTP method
+- `500 Internal Server Error`: Redis read failure
+
 ## Tool Call Tracking (Redis)
 
 Wrapped tool calls made by the AI agent are written to Redis in real-time. This allows you to monitor which wrapped tools are being invoked and with what arguments for each request.
@@ -214,6 +251,12 @@ Value: [
 ```bash
 # Get all tool calls for a request
 redis-cli LRANGE "request:550e8400-e29b-41d4-a716-446655440000:tool_calls" 0 -1
+```
+
+Or via the HTTP API:
+```bash
+curl "http://127.0.0.1:8080/api/tools?response_id=550e8400-e29b-41d4-a716-446655440000" \
+  -H "X-API-Key: your-chat-api-key"
 ```
 
 **Configuration:**

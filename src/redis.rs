@@ -167,6 +167,48 @@ pub async fn write_tool_call(
     }
 }
 
+pub async fn read_tool_calls(
+    request_id: &str,
+) -> Result<Vec<ToolCallRecord>, Box<dyn std::error::Error>> {
+    warn!("read_tool_calls invoked for request_id={}", request_id);
+
+    let Some(client) = REDIS_CLIENT.get() else {
+        error!(
+            "Redis client not initialized; cannot read tool calls for request_id={}",
+            request_id
+        );
+        return Err("Redis client not initialized".into());
+    };
+
+    let mut conn = client.get_multiplexed_async_connection().await?;
+    let redis_key = format!("request:{}:tool_calls", request_id);
+    warn!(
+        "Issuing Redis LRANGE for key={} request_id={}",
+        redis_key, request_id
+    );
+
+    let raw_records: Vec<String> = redis::cmd("LRANGE")
+        .arg(&redis_key)
+        .arg(0)
+        .arg(-1)
+        .query_async(&mut conn)
+        .await?;
+
+    let mut records = Vec::with_capacity(raw_records.len());
+    for raw_record in raw_records {
+        let record: ToolCallRecord = serde_json::from_str(&raw_record)?;
+        records.push(record);
+    }
+
+    info!(
+        "Redis LRANGE succeeded for request_id={} with {} tool calls",
+        request_id,
+        records.len()
+    );
+
+    Ok(records)
+}
+
 fn json_type_name(value: &serde_json::Value) -> &'static str {
     match value {
         serde_json::Value::Null => "null",

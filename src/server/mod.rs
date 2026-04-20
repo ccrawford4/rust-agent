@@ -88,6 +88,10 @@ impl Server {
                         self.chat_handler(&mut stream, request.method, request.body)
                             .await
                     }
+                    Path::Tools => {
+                        self.tools_handler(&mut stream, request.method, request.query_params)
+                            .await
+                    }
                     Path::Root => self.root_handler(&mut stream),
                     Path::Favicon => {
                         debug!("Favicon request received, returning 404");
@@ -207,6 +211,66 @@ impl Server {
             _ => {
                 warn!("Invalid HTTP method for /chat endpoint");
                 Self::send_response(stream, "405 Method Not Allowed", "Invalid method for /chat")
+            }
+        }
+    }
+
+    /// Handles GET /api/tools requests by returning logged tool calls from Redis.
+    async fn tools_handler(
+        &self,
+        stream: &mut TcpStream,
+        method: Method,
+        query_params: std::collections::HashMap<String, String>,
+    ) -> io::Result<()> {
+        match method {
+            Method::GET => {
+                let Some(response_id) = query_params.get("response_id") else {
+                    warn!("Tools request missing response_id query parameter");
+                    return Self::send_response(
+                        stream,
+                        "400 Bad Request",
+                        "{\"error\":\"Missing response_id query parameter\"}",
+                    );
+                };
+
+                if response_id.is_empty() {
+                    warn!("Tools request has empty response_id query parameter");
+                    return Self::send_response(
+                        stream,
+                        "400 Bad Request",
+                        "{\"error\":\"response_id cannot be empty\"}",
+                    );
+                }
+
+                match crate::redis::read_tool_calls(response_id).await {
+                    Ok(tool_calls) => {
+                        let body = serde_json::json!({
+                            "response_id": response_id,
+                            "tools": tool_calls,
+                        })
+                        .to_string();
+                        Self::send_response(stream, "200 OK", &body)
+                    }
+                    Err(e) => {
+                        error!(
+                            "Failed to read tool calls for response_id={}: {}",
+                            response_id, e
+                        );
+                        Self::send_response(
+                            stream,
+                            "500 Internal Server Error",
+                            "{\"error\":\"Failed to fetch tool calls\"}",
+                        )
+                    }
+                }
+            }
+            _ => {
+                warn!("Invalid HTTP method for /api/tools endpoint");
+                Self::send_response(
+                    stream,
+                    "405 Method Not Allowed",
+                    "Invalid method for /api/tools",
+                )
             }
         }
     }
