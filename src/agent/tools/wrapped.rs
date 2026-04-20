@@ -6,7 +6,7 @@ use super::portfolio_api_search::{ModelError, PortfolioAPISearch, PortfolioAPISe
 pub struct WrappedPortfolioAPISearch;
 
 impl Tool for WrappedPortfolioAPISearch {
-    const NAME: &'static str = "portfolio_api_search";
+    const NAME: &'static str = "web_search";
     type Error = ModelError;
     type Args = PortfolioAPISearchArgs;
     type Output = String;

@@ -261,7 +261,7 @@ curl "http://127.0.0.1:8080/api/tools?response_id=550e8400-e29b-41d4-a716-446655
   "response_id": "550e8400-e29b-41d4-a716-446655440000",
   "tools": [
     {
-      "name": "portfolio_api_search",
+      "name": "web_search",
       "args": {
         "endpoint": "about"
       },
@@ -293,7 +293,7 @@ Wrapped tool calls made by the AI agent are written to Redis in real-time. This 
 ```
 Key: request:550e8400-e29b-41d4-a716-446655440000:tool_calls
 Value: [
-  {"name": "portfolio_api_search", "args": {"endpoint": "about"}, "timestamp": "2025-02-15T10:30:45Z"}
+  {"name": "web_search", "args": {"endpoint": "about"}, "timestamp": "2025-02-15T10:30:45Z"}
 ]
 ```
 
@@ -313,7 +313,7 @@ curl "http://127.0.0.1:8080/api/tools?response_id=550e8400-e29b-41d4-a716-446655
 - Set `REDIS_URL` to your Redis instance. If unset, the app defaults to `redis://127.0.0.1:6379`
 - The server validates Redis connectivity during startup with a connection check and `PING`
 - If Redis is unavailable or authentication fails, the process exits and the server does not start
-- At present, `portfolio_api_search` is wrapped and logged; Kubernetes tools are not
+- At present, `web_search` is wrapped and logged; Kubernetes tools are not
 
 ## Configuration
 

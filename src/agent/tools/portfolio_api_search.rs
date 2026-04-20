@@ -62,7 +62,7 @@ impl Error for ModelError {}
 pub struct PortfolioAPISearch;
 
 impl Tool for PortfolioAPISearch {
-    const NAME: &'static str = "portfolio_api_search";
+    const NAME: &'static str = "web_search";
     type Error = ModelError;
     type Args = PortfolioAPISearchArgs;
     type Output = String;
