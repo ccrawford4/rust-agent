@@ -32,26 +32,68 @@ impl PromptHook<ResponsesCompletionModel> for RedisToolLoggingHook {
     fn on_tool_call(
         &self,
         tool_name: &str,
-        _tool_call_id: Option<String>,
+        tool_call_id: Option<String>,
         args: &str,
         _cancel_sig: CancelSignal,
     ) -> impl Future<Output = ()> + Send {
         let request_id = self.request_id.clone();
         let tool_name = tool_name.to_string();
+        let tool_call_id = tool_call_id.clone();
         let args = args.to_string();
 
         async move {
+            warn!(
+                "RedisToolLoggingHook triggered for request_id={} tool={} tool_call_id={:?} raw_args_bytes={}",
+                request_id,
+                tool_name,
+                tool_call_id,
+                args.len()
+            );
             info!(
                 "Observed tool call for request_id {}: tool={} args={}",
                 request_id, tool_name, args
             );
-            let parsed_args =
-                serde_json::from_str(&args).unwrap_or_else(|_| json!({ "raw": args }));
+            warn!(
+                "Parsing tool args for request_id={} tool={}",
+                request_id, tool_name
+            );
+            let parsed_args = match serde_json::from_str(&args) {
+                Ok(value) => {
+                    warn!(
+                        "Parsed tool args as JSON for request_id={} tool={}",
+                        request_id, tool_name
+                    );
+                    value
+                }
+                Err(e) => {
+                    warn!(
+                        "Failed to parse tool args as JSON for request_id={} tool={}: {}; storing raw payload",
+                        request_id, tool_name, e
+                    );
+                    json!({ "raw": args })
+                }
+            };
+            warn!(
+                "Constructing Redis tool call payload for request_id={} tool={}",
+                request_id, tool_name
+            );
             let tool_call = redis::ToolCall::new(tool_name, parsed_args);
 
+            warn!(
+                "Writing hook-observed tool call to Redis for request_id={}",
+                request_id
+            );
             if let Err(e) = redis::write_tool_call(&request_id, tool_call).await {
+                warn!(
+                    "Hook Redis write failed for request_id={}: {}",
+                    request_id, e
+                );
                 error!("Failed to write tool call to Redis: {}", e);
             } else {
+                warn!(
+                    "Hook Redis write succeeded for request_id={}",
+                    request_id
+                );
                 info!("Tool call written to Redis for request_id {}", request_id);
             }
         }
@@ -107,12 +149,24 @@ impl Agent {
             prompt.len(),
             request_id
         );
+        warn!(
+            "Starting chat flow for request_id={} prompt_bytes={} history_messages={}",
+            request_id,
+            prompt.len(),
+            chat_history.len()
+        );
         let hook = RedisToolLoggingHook { request_id };
+        warn!("RedisToolLoggingHook attached to chat request");
 
         const MAX_RETRIES: u32 = 5;
         let mut backoff_secs = 1u64;
 
         for attempt in 0..=MAX_RETRIES {
+            warn!(
+                "Submitting agent prompt for attempt={} of {}",
+                attempt + 1,
+                MAX_RETRIES + 1
+            );
             match self
                 .client
                 .prompt(&prompt)
@@ -122,10 +176,20 @@ impl Agent {
                 .await
             {
                 Ok(response) => {
+                    warn!(
+                        "Agent prompt succeeded on attempt={} response_bytes={}",
+                        attempt + 1,
+                        response.len()
+                    );
                     info!("Agent response generated ({} chars)", response.len());
                     return Ok(response);
                 }
                 Err(e) => {
+                    warn!(
+                        "Agent prompt failed on attempt={} error={}",
+                        attempt + 1,
+                        e
+                    );
                     let mut source = e.source();
                     while let Some(err) = source {
                         error!("  caused by: {}", err);

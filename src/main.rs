@@ -35,6 +35,14 @@ async fn main() {
 
     let env = Environment::new();
 
+    if let Err(e) = redis::init(&env.redis_url).await {
+        error!(
+            "Redis initialization failed; refusing to start server: {}",
+            e
+        );
+        std::process::exit(1);
+    }
+
     let agent = match Agent::new(env.openai_api_key) {
         Ok(agent) => agent,
         Err(e) => {

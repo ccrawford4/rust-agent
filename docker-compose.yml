@@ -18,6 +18,4 @@ services:
     image: "redis:alpine"
     ports:
       - "6379:6379"
-    environment:
-      - REDIS_PASSWORD=admin123
     command: ["redis-server", "--requirepass", "admin123"]

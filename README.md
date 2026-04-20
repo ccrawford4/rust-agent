@@ -13,7 +13,7 @@ A RESTful API server built in Rust that provides AI-powered insights about my [p
 
 - **Rust** (1.70+): Install from [rustup.rs](https://rustup.rs/)
 - **OpenAI API Key**: Get one from [OpenAI](https://platform.openai.com/)
-- **Redis** (optional): For storing tool call metadata. Install from [redis.io](https://redis.io/)
+- **Redis**: Required at startup for tool call tracking. Install from [redis.io](https://redis.io/)
 - **Kubernetes Cluster** (optional): Required for infrastructure monitoring features
 
 ## Quick Start
@@ -37,11 +37,15 @@ A RESTful API server built in Rust that provides AI-powered insights about my [p
    OPENAI_API_KEY=your_openai_api_key_here
    CHAT_API_KEY=your_secure_api_key_for_authentication_from_step_2
 
-   # Optional (defaults shown)
+   # Optional
    PRODUCTION_MODE=false
    KUBE_API_SERVER=https://localhost:6443
    KUBE_TOKEN=your_kubernetes_token_here
+
+   # Required operationally unless you are running Redis locally on the default address
    REDIS_URL=redis://127.0.0.1:6379
+
+   # Optional
    RUST_LOG=info
    ```
 
@@ -50,6 +54,8 @@ A RESTful API server built in Rust that provides AI-powered insights about my [p
    cargo build --release
    cargo run --release
    ```
+
+   The server verifies Redis during startup and exits immediately if it cannot connect.
 
 5. **Test the server**
    ```bash
@@ -123,7 +129,11 @@ The server is designed to run inside a Kubernetes cluster as a pod with appropri
            key: chat-api-key
      - name: KUBE_API_SERVER
        value: "https://kubernetes.default.svc"
+     - name: REDIS_URL
+       value: "redis://your-redis-service:6379"
    ```
+
+   The application will not start unless the configured Redis instance is reachable at boot.
 
 ## API Documentation
 
@@ -184,7 +194,7 @@ String response from the AI agent
 
 ## Tool Call Tracking (Redis)
 
-When Redis is configured, wrapped tool calls made by the AI agent are written to Redis in real-time. This allows you to monitor which wrapped tools are being invoked and with what arguments for each request.
+Wrapped tool calls made by the AI agent are written to Redis in real-time. This allows you to monitor which wrapped tools are being invoked and with what arguments for each request.
 
 **How it works:**
 1. Each API request includes a `request_id` in the body
@@ -207,8 +217,9 @@ redis-cli LRANGE "request:550e8400-e29b-41d4-a716-446655440000:tool_calls" 0 -1
 ```
 
 **Configuration:**
-- Set `REDIS_URL` environment variable (defaults to `redis://127.0.0.1:6379`)
-- If Redis is unavailable, tool calls are gracefully skipped (no impact on agent operation)
+- Set `REDIS_URL` to your Redis instance. If unset, the app defaults to `redis://127.0.0.1:6379`
+- The server validates Redis connectivity during startup with a connection check and `PING`
+- If Redis is unavailable or authentication fails, the process exits and the server does not start
 - At present, `portfolio_api_search` is wrapped and logged; Kubernetes tools are not
 
 ## Configuration
@@ -222,7 +233,7 @@ redis-cli LRANGE "request:550e8400-e29b-41d4-a716-446655440000:tool_calls" 0 -1
 | `PRODUCTION_MODE` | No | `false` | Enables production mode (uses mounted K8s credentials) |
 | `KUBE_API_SERVER` | No | `https://localhost:6443` | Kubernetes API server URL |
 | `KUBE_TOKEN` | No (dev only) | - | Kubernetes bearer token (development mode only) |
-| `REDIS_URL` | No | `redis://127.0.0.1:6379` | Redis connection URL for tool call tracking |
+| `REDIS_URL` | No | `redis://127.0.0.1:6379` | Redis connection URL. Startup fails if this target is unreachable |
 | `RUST_LOG` | No | `info` | Log level (`error`, `warn`, `info`, `debug`, `trace`) |
 
 ### Logging

@@ -1,24 +1,53 @@
-use once_cell::sync::Lazy;
+use once_cell::sync::OnceCell;
 use redis::Client;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
-static REDIS_CLIENT: Lazy<Option<Client>> = Lazy::new(|| match std::env::var("REDIS_URL") {
-    Ok(redis_url) => match Client::open(redis_url.as_str()) {
+static REDIS_CLIENT: OnceCell<Client> = OnceCell::new();
+
+pub async fn init(redis_url: &str) -> Result<(), redis::RedisError> {
+    warn!(
+        "Initializing Redis client from configured URL ({} chars)",
+        redis_url.len()
+    );
+
+    let client = match REDIS_CLIENT.get_or_try_init(|| Client::open(redis_url)) {
         Ok(client) => {
-            debug!("Redis client created successfully");
-            Some(client)
+            warn!("Redis client created successfully");
+            client
         }
         Err(e) => {
+            warn!("Redis client creation failed: {}", e);
             error!("Failed to create Redis client: {}", e);
-            None
+            return Err(e);
         }
-    },
-    Err(_) => {
-        debug!("REDIS_URL not set, Redis support disabled");
-        None
+    };
+
+    warn!("Verifying Redis connectivity with startup connection check");
+    let mut conn = match client.get_multiplexed_async_connection().await {
+        Ok(conn) => {
+            warn!("Redis startup connection acquired successfully");
+            conn
+        }
+        Err(e) => {
+            warn!("Redis startup connection failed: {}", e);
+            error!("Failed to connect to Redis during startup: {}", e);
+            return Err(e);
+        }
+    };
+
+    match redis::cmd("PING").query_async::<_, String>(&mut conn).await {
+        Ok(response) => {
+            warn!("Redis startup PING succeeded with response={}", response);
+            Ok(())
+        }
+        Err(e) => {
+            warn!("Redis startup PING failed: {}", e);
+            error!("Failed to verify Redis during startup: {}", e);
+            Err(e)
+        }
     }
-});
+}
 
 pub struct ToolCall {
     pub name: String,
@@ -27,6 +56,11 @@ pub struct ToolCall {
 
 impl ToolCall {
     pub fn new(name: String, args: serde_json::Value) -> Self {
+        warn!(
+            "Creating ToolCall for tool={} args_type={}",
+            name,
+            json_type_name(&args)
+        );
         Self { name, args }
     }
 }
@@ -42,42 +76,104 @@ pub async fn write_tool_call(
     request_id: &str,
     tool_call: ToolCall,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let Some(client) = &*REDIS_CLIENT else {
-        debug!("Redis not configured, skipping tool call write");
+    warn!(
+        "write_tool_call invoked for request_id={} tool={}",
+        request_id, tool_call.name
+    );
+    let Some(client) = REDIS_CLIENT.get() else {
+        warn!(
+            "Redis client not initialized; skipping write for request_id={} tool={}",
+            request_id, tool_call.name
+        );
+        debug!("Redis client not initialized, skipping tool call write");
         return Ok(());
     };
 
     info!("Writing tool call to Redis for request_id: {}", request_id);
+    warn!(
+        "Opening multiplexed Redis connection for request_id={} tool={}",
+        request_id, tool_call.name
+    );
 
     let mut conn = match client.get_multiplexed_async_connection().await {
-        Ok(c) => c,
+        Ok(c) => {
+            warn!(
+                "Redis connection acquired for request_id={} tool={}",
+                request_id, tool_call.name
+            );
+            c
+        }
         Err(e) => {
+            warn!(
+                "Redis connection acquisition failed for request_id={} tool={}: {}",
+                request_id, tool_call.name, e
+            );
             error!("Failed to get Redis connection: {}", e);
             return Err(Box::new(e));
         }
     };
 
+    warn!(
+        "Building ToolCallRecord for request_id={} tool={} args_type={}",
+        request_id,
+        tool_call.name,
+        json_type_name(&tool_call.args)
+    );
     let record = ToolCallRecord {
         name: tool_call.name,
         args: tool_call.args,
         timestamp: chrono::Utc::now().to_rfc3339(),
     };
 
+    warn!(
+        "Serializing ToolCallRecord for request_id={} tool={} timestamp={}",
+        request_id, record.name, record.timestamp
+    );
     let json_str = serde_json::to_string(&record)?;
+    let redis_key = format!("request:{}:tool_calls", request_id);
+    warn!(
+        "Serialized ToolCallRecord for request_id={} tool={} payload_bytes={}",
+        request_id,
+        record.name,
+        json_str.len()
+    );
+    warn!(
+        "Issuing Redis RPUSH for key={} request_id={} tool={}",
+        redis_key, request_id, record.name
+    );
 
     match redis::cmd("RPUSH")
-        .arg(format!("request:{}:tool_calls", request_id))
+        .arg(&redis_key)
         .arg(&json_str)
         .query_async::<_, ()>(&mut conn)
         .await
     {
         Ok(_) => {
+            warn!(
+                "Redis RPUSH completed for key={} request_id={} tool={}",
+                redis_key, request_id, record.name
+            );
             info!("Redis RPUSH succeeded for request_id: {}", request_id);
             Ok(())
         }
         Err(e) => {
+            warn!(
+                "Redis RPUSH failed for key={} request_id={} tool={}: {}",
+                redis_key, request_id, record.name, e
+            );
             error!("Failed to write tool call to Redis: {}", e);
             Err(Box::new(e))
         }
+    }
+}
+
+fn json_type_name(value: &serde_json::Value) -> &'static str {
+    match value {
+        serde_json::Value::Null => "null",
+        serde_json::Value::Bool(_) => "bool",
+        serde_json::Value::Number(_) => "number",
+        serde_json::Value::String(_) => "string",
+        serde_json::Value::Array(_) => "array",
+        serde_json::Value::Object(_) => "object",
     }
 }
