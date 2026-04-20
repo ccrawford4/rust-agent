@@ -1,7 +1,7 @@
 use once_cell::sync::Lazy;
 use redis::Client;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 static REDIS_CLIENT: Lazy<Option<Client>> = Lazy::new(|| match std::env::var("REDIS_URL") {
     Ok(redis_url) => match Client::open(redis_url.as_str()) {
@@ -47,6 +47,8 @@ pub async fn write_tool_call(
         return Ok(());
     };
 
+    info!("Writing tool call to Redis for request_id: {}", request_id);
+
     let mut conn = match client.get_multiplexed_async_connection().await {
         Ok(c) => c,
         Err(e) => {
@@ -70,7 +72,7 @@ pub async fn write_tool_call(
         .await
     {
         Ok(_) => {
-            debug!("Tool call written to Redis for request_id: {}", request_id);
+            info!("Redis RPUSH succeeded for request_id: {}", request_id);
             Ok(())
         }
         Err(e) => {

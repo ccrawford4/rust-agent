@@ -6,7 +6,6 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://:admin123@redis:6379
-      - REDIS_PASSWORD=admin123
     depends_on:
       - redis
     deploy:
@@ -21,3 +20,4 @@ services:
       - "6379:6379"
     environment:
       - REDIS_PASSWORD=admin123
+    command: ["redis-server", "--requirepass", "admin123"]

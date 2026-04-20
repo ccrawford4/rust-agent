@@ -1,12 +1,15 @@
 pub mod tools;
 
-use crate::context;
 use crate::environment::Environment;
 use crate::kube::{KubeAgent, ListNamespacesTool, ListPodsTool, NodeMetricsTool};
+use crate::redis;
+use rig::agent::{CancelSignal, PromptHook};
 use rig::client::CompletionClient;
 use rig::completion::{Message, Prompt};
 use rig::providers::openai::{self, responses_api::ResponsesCompletionModel};
+use serde_json::json;
 use std::error::Error;
+use std::future::Future;
 use tools::WrappedPortfolioAPISearch;
 use tracing::*;
 
@@ -18,6 +21,41 @@ use tracing::*;
 /// - Kubernetes API tools for cluster metrics and pod information
 pub struct Agent {
     client: rig::agent::Agent<ResponsesCompletionModel>,
+}
+
+#[derive(Clone)]
+struct RedisToolLoggingHook {
+    request_id: String,
+}
+
+impl PromptHook<ResponsesCompletionModel> for RedisToolLoggingHook {
+    fn on_tool_call(
+        &self,
+        tool_name: &str,
+        _tool_call_id: Option<String>,
+        args: &str,
+        _cancel_sig: CancelSignal,
+    ) -> impl Future<Output = ()> + Send {
+        let request_id = self.request_id.clone();
+        let tool_name = tool_name.to_string();
+        let args = args.to_string();
+
+        async move {
+            info!(
+                "Observed tool call for request_id {}: tool={} args={}",
+                request_id, tool_name, args
+            );
+            let parsed_args =
+                serde_json::from_str(&args).unwrap_or_else(|_| json!({ "raw": args }));
+            let tool_call = redis::ToolCall::new(tool_name, parsed_args);
+
+            if let Err(e) = redis::write_tool_call(&request_id, tool_call).await {
+                error!("Failed to write tool call to Redis: {}", e);
+            } else {
+                info!("Tool call written to Redis for request_id {}", request_id);
+            }
+        }
+    }
 }
 
 impl Agent {
@@ -69,7 +107,7 @@ impl Agent {
             prompt.len(),
             request_id
         );
-        context::set_request_id(request_id);
+        let hook = RedisToolLoggingHook { request_id };
 
         const MAX_RETRIES: u32 = 5;
         let mut backoff_secs = 1u64;
@@ -79,12 +117,12 @@ impl Agent {
                 .client
                 .prompt(&prompt)
                 .with_history(&mut chat_history)
+                .with_hook(hook.clone())
                 .multi_turn(20)
                 .await
             {
                 Ok(response) => {
                     info!("Agent response generated ({} chars)", response.len());
-                    context::clear_request_id();
                     return Ok(response);
                 }
                 Err(e) => {
@@ -96,7 +134,6 @@ impl Agent {
 
                     if attempt == MAX_RETRIES {
                         error!("Agent prompt failed after {} retries: {}", MAX_RETRIES, e);
-                        context::clear_request_id();
                         return Err(Box::new(e));
                     }
 

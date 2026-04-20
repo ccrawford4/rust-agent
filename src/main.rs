@@ -7,7 +7,6 @@ use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
 mod agent;
-mod context;
 mod environment;
 mod kube;
 mod redis;
